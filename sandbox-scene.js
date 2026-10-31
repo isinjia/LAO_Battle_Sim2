@@ -513,6 +513,7 @@
       if (kind === 'skill' && apBadge) { const ap = sk ? num(sk.levelTable, 'NeedActionPoint') : 0; const w1 = text(ctx, 'AP', bcx - 24, bcy + 1, { size: 19, color: '#5ec8f0', outline: false }); text(ctx, `-${ap}`, bcx - 24 + w1 + 4, bcy + 1, { size: 23, color: '#fff', outline: false }); }
       else if (kind === 'skill') text(ctx, `Skill${k + 1}`, bcx, bcy + 1, { size: 21, align: 'center', color: '#fff', outline: false });
       else if (kind === 'move' && C.sysOn('moveApCost')) { const w1 = text(ctx, 'AP', bcx - 24, bcy + 1, { size: 19, color: '#5ec8f0', outline: false }); text(ctx, '-2', bcx - 24 + w1 + 4, bcy + 1, { size: 23, color: '#fff', outline: false }); } // 이동 AP 20 = 소모 행동력 2
+      else if (kind === 'wait' && apBadge) { const w1 = text(ctx, 'AP', bcx - 24, bcy + 1, { size: 19, color: '#5ec8f0', outline: false }); text(ctx, '-5', bcx - 24 + w1 + 4, bcy + 1, { size: 23, color: '#fff', outline: false }); } // 대기 AP 50 = 소모 행동력 5
       else text(ctx, kind === 'move' ? 'Move' : 'Wait', bcx, bcy + 1, { size: 23, align: 'center', color: '#fff', outline: false });
       // 3x3 범위 격자
       let on = [];
@@ -697,11 +698,15 @@
     // 스킬별 재출발 위치 미리보기: 차례가 시작되면 1번 스킬이 자동으로 눌리므로 그때부터 보인다. 스킬 버튼을 누르면 그 스킬 기준으로 바뀐다.
     // 이동 후 행동이면 이미 쓴 이동 AP 20을 포함해 계산한다 (2026-10-31)
     // 라운드 시작 대기·경주 연출이 끝나 실제로 그 전투원의 차례가 된 뒤에만 보인다(연출 중·대기 중에는 미리 보이지 않음)
+    // 이동(이동 시 AP 20 소모가 켜진 경우)과 대기(소모 행동력 5 고정)도 같은 방식으로 표시한다
     const turnArrived = !ph || ph.name === 'done';
-    if (C.sysOn('skillReturnPreview') && (C.sysOn('skillApReturn') || C.sysOn('moveApCost')) && manual && manual.mode === 'skill' && manual.skill && winnerUnit === manual.unit && turnArrived) {
-      const cost = num(manual.skill.levelTable, 'NeedActionPoint');
+    let previewCost = null; // 트랙 단위 소모량
+    if (manual && manual.mode === 'skill' && manual.skill) previewCost = num(manual.skill.levelTable, 'NeedActionPoint') * 10;
+    else if (manual && manual.mode === 'move' && C.sysOn('moveApCost')) previewCost = 20;
+    else if (manual && manual.mode === 'wait') previewCost = C.sysOn('waitHeal') ? 100 : (L.battle.WAIT_AP_COST || 50);
+    if (C.sysOn('skillReturnPreview') && (C.sysOn('skillApReturn') || C.sysOn('moveApCost')) && manual && previewCost !== null && winnerUnit === manual.unit && turnArrived) {
       const spent = (manual.unit.flags && manual.unit.flags.apCost) || 0;
-      const percent = Math.max(0, Math.min(100, 100 - spent - cost * 10));
+      const percent = Math.max(0, Math.min(100, 100 - spent - previewCost));
       const ally = C.isPC(manual.unit) || manual.unit.team === 1;
       const cx = W / 2 + ax + apX(percent) + (fr[0] + fr[2]) / 2 * AP_TRACK.SCALE;
       const cy = H / 2 - ay - trackY(ally) - (fr[1] + fr[3]) / 2 * AP_TRACK.SCALE;

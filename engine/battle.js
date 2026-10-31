@@ -70,6 +70,8 @@
   // apCost: 이번 턴의 자기 행동(이동·스킬)이 소모한 AP 합(실험 시스템 '이동 시 AP 20 소모 후 행동'). apReturnBase = 100 - apCost.
   function beginActionPointCycle(u) { if (u.flags.apTracking) return; u.flags.apTracking = true; u.flags.apCarry = 0; u.flags.apReturnBase = 0; u.flags.apCost = 0; }
   function cancelActionPointCycle(u) { u.flags.apTracking = false; u.flags.apCarry = 0; u.flags.apReturnBase = 0; u.flags.apCost = 0; u.flags.waitApExhausted = false; }
+  const WAIT_AP_COST = 50; // 대기 소모 AP(트랙 단위). 소모 행동력 5. '대기 시 회복'이 켜져 있으면 그쪽 규칙(전부 소모)이 우선
+  B.WAIT_AP_COST = WAIT_AP_COST;
   const moveApCostOn = (b) => !!(b && b.hooks && b.hooks.moveApCost && b.hooks.moveApCost());
   const actAfterMoveOn = (b) => !!(b && b.hooks && ((b.hooks.actAfterMove && b.hooks.actAfterMove()) || moveApCostOn(b)));
   function addApCost(u, cost) { u.flags.apCost = Math.min(ACTIVE_ROUND(), (u.flags.apCost || 0) + cost); u.flags.apReturnBase = Math.max(0, ACTIVE_ROUND() - u.flags.apCost); }
@@ -642,7 +644,7 @@
         } else if (rec.kind === 'move' && moveApCostOn(b)) {
           addApCost(a, 20);
         } else if (rec.kind === 'wait') {
-          addApCost(a, ACTIVE_ROUND());
+          addApCost(a, WAIT_AP_COST); // 대기는 소모 행동력 5(트랙 50)로 고정 (2026-10-31)
         }
       }
       return rec;
