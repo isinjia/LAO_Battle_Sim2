@@ -8,6 +8,9 @@
 // =====================================================================================================
 (function () {
   const L = window.LOSim;
+  // 용어 통일(2026-10-31): 게임 자료에서 오는 이름·설명의 "행동력"도 화면에서는 "AP"로 보인다(자료 자체는 그대로)
+  const AP_TERM = (s) => (typeof s === 'string' ? s.replace(/행동력/g, 'AP') : s);
+  if (L && L.name && !L.name._apTerm) { const orig = L.name; L.name = (k, f) => AP_TERM(orig(k, f)); L.name._apTerm = true; }
   const num = L.num, str = L.str, list = L.list;
   const E = L.E, BT = E.BUFFEFFECT_TYPE, TT = E.TARGET_TYPE, AT = E.ACTOR_ATTR_TYPE, VT = E.VALUE_TYPE, SA = E.SKILL_ATTR, AC = E.ACTOR_CLASS, ATT = E.ATTACKTARGETTYPE;
   const WAIT = 'Wait', MOVE = 'Move';
@@ -36,20 +39,20 @@
     { id: 'intent', name: '적 행동 예측 표시', test: true, on: true,
       desc: '적이 다음에 사용할 스킬과 공격 대상을 표시합니다. 턴바에는 스킬 아이콘을, 대상 머리 위에는 적 이름과 스킬명을 표시합니다.',
       opts: [{ id: 'lock', name: '예고한 적 행동 유지', on: true, desc: '켜면 적이 예고한 행동을 실행합니다. 대상이 사라지면 같은 스킬로 가장 가까운 대상을 선택하고, 대상이 없으면 대기합니다. 끄면 차례가 왔을 때 행동이 달라질 수 있습니다.' }] },
-    { id: 'skillApReturn', name: '스킬 소모 행동력에 따른 재출발', test: true, on: false,
-      desc: '스킬 사용 후 턴이 끝나면 10에서 소모 행동력을 뺀 값에 해당하는 위치에서 다시 시작합니다. 소모 3이면 7(70%), 소모 5이면 5(50%), 소모 8이면 2(20%)입니다. 대기는 소모 행동력 5로 고정해 5(50%)에서 다시 시작합니다("대기 시 회복"을 켜면 그쪽 규칙대로 전부 소모). 끄면 기존 전투 규칙을 사용합니다. 아군과 적에게 모두 적용됩니다.' },
+    { id: 'skillApReturn', name: '스킬 소모 AP에 따른 재출발', test: true, on: false,
+      desc: '스킬 사용 후 턴이 끝나면 10에서 소모 AP를 뺀 값에 해당하는 위치에서 다시 시작합니다. 소모 3이면 7(70%), 소모 5이면 5(50%), 소모 8이면 2(20%)입니다. 대기는 소모 AP 5로 고정해 5(50%)에서 다시 시작합니다("대기 시 회복"을 켜면 그쪽 규칙대로 전부 소모). 끄면 기존 전투 규칙을 사용합니다. 아군과 적에게 모두 적용됩니다.' },
     { id: 'skillReturnPreview', name: '스킬별 재출발 위치 미리보기', test: true, on: false,
-      desc: '스킬 소모 행동력에 따른 재출발(또는 이동 시 AP 20 소모 후 행동) 실험을 함께 켜면, 그 전투원의 차례가 시작될 때부터(1번 스킬이 자동으로 눌린 상태) 고른 스킬 사용 후 돌아갈 위치를 턴바의 하늘색 점선과 백분율로 표시합니다. 다른 스킬 버튼을 누르면 그 스킬 기준으로 바뀌고, 이동(AP 20 소모가 켜진 경우)과 대기(소모 5)를 고르면 그 기준으로 표시합니다. 이동 후 행동이면 이미 쓴 이동 AP 20을 포함합니다. 스킬에 지정된 소모량 기준이며 별도 행동력 효과는 포함하지 않습니다.' },
+      desc: '스킬 소모 AP에 따른 재출발(또는 이동 시 AP 20 소모 후 행동) 실험을 함께 켜면, 그 전투원의 차례가 시작될 때부터(1번 스킬이 자동으로 눌린 상태) 고른 스킬 사용 후 돌아갈 위치를 턴바의 하늘색 점선과 백분율로 표시합니다. 다른 스킬 버튼을 누르면 그 스킬 기준으로 바뀌고, 이동(AP 20 소모가 켜진 경우)과 대기(소모 5)를 고르면 그 기준으로 표시합니다. 이동 후 행동이면 이미 쓴 이동 AP 20을 포함합니다. 스킬에 지정된 소모량 기준이며 별도 AP 효과는 포함하지 않습니다.' },
     { id: 'slotCooldown', name: '스킬 쿨타임 적용', test: true, on: false,
       desc: '켜면 아군과 적의 1번 스킬은 재사용 대기 없이 사용하고, 2번 스킬은 지정된 재사용 대기를 적용합니다. 끄면 두 스킬 모두 기존 설정을 따릅니다.' },
     { id: 'realTimeBuffs', name: '버프 지속 시간화(초)', test: true, on: true,
       desc: '켜면 지속형(라운드·턴) 버프·디버프를 턴 수 대신 초로 셉니다. 시계는 턴 순서 바에서 AP 게이지가 차는 동안만 흐르고(라운드마다 0.15~2초, 배속과 무관) 스킬·이동 연출과 입력 대기 중에는 멈춥니다. 능력치 버프·디버프·지속 피해는 1턴 = 10초(3턴이면 30초), 기절(AP 정지)은 테이블 값과 무관하게 3초로 고정하며 AP는 깎지 않습니다(풀리면 그대로 행동). 보스(몬스터 종류 2)는 기절 면역. 지속 피해는 전과 같이 자기 턴이 끝날 때 들어갑니다. 전투 화면 왼쪽 위에 전투 시간을, 효과 목록에 남은 초를 표시합니다. 2026-10-31 전투 피드백 4번 결정 사항. 전투 중에 바꾸면 그 뒤 새로 걸리는 버프부터 적용됩니다.' },
     { id: 'apSpeed2x', name: 'AP 회복 속도 2배', test: true, on: true,
-      desc: '켜면 아군·적 모든 전투원과 예약(지연) 공격의 행동력 회복 속도를 2배로 계산합니다. 전투원끼리의 상대 순서는 그대로이고, 라운드마다 행동력이 차는 시간이 절반이 되어 턴 순서 바의 경주 연출이 짧아지며 행동력을 정해진 양만큼 더하거나 빼는 효과(행동력 증감)는 상대적으로 절반의 영향만 줍니다. 2026-10-31 전투 피드백. 전투 중에 바꾸면 다음 라운드 계산부터 적용되고, 이미 걸어 둔 예약 공격의 회복 속도는 바뀌지 않습니다.' },
+      desc: '켜면 아군·적 모든 전투원과 예약(지연) 공격의 AP 회복 속도를 2배로 계산합니다. 전투원끼리의 상대 순서는 그대로이고, 라운드마다 AP가 차는 시간이 절반이 되어 턴 순서 바의 경주 연출이 짧아지며 AP를 정해진 양만큼 더하거나 빼는 효과(AP 증감)는 상대적으로 절반의 영향만 줍니다. 2026-10-31 전투 피드백. 전투 중에 바꾸면 다음 라운드 계산부터 적용되고, 이미 걸어 둔 예약 공격의 회복 속도는 바뀌지 않습니다.' },
     { id: 'noCooldown', name: '스킬 쿨타임 삭제', test: true, on: true,
       desc: '켜면 아군과 적의 모든 스킬에 재사용 대기를 적용하지 않습니다(테이블의 재사용 대기 값은 무시). 2026-10-31 전투 피드백 1번. 끄면 아래 "스킬 쿨타임 적용" 설정을 따릅니다.' },
     { id: 'moveApCost', name: '이동 시 AP 20 소모 후 행동', test: true, on: true,
-      desc: '켜면 이동은 AP 20을 소모하고 턴을 끝내지 않습니다. 같은 전투원이 이어서 스킬 또는 대기를 한 번 더 고르며, 한 턴에 이동은 한 번만 가능합니다. 턴이 끝나면 100에서 20과 스킬 소모 행동력×10(대기는 50)을 뺀 값에서 다시 출발합니다(음수는 0). 2026-10-31 전투 피드백 2·3번. 아군과 적에게 모두 적용되며, 스킬 소모량 차감은 "스킬 소모 행동력에 따른 재출발"과 같은 규칙입니다.' },
+      desc: '켜면 이동은 AP 20을 소모하고 턴을 끝내지 않습니다. 같은 전투원이 이어서 스킬 또는 대기를 한 번 더 고르며, 한 턴에 이동은 한 번만 가능합니다. 턴이 끝나면 100에서 20과 스킬 소모 AP×10(대기는 50)을 뺀 값에서 다시 출발합니다(음수는 0). 2026-10-31 전투 피드백 2·3번. 아군과 적에게 모두 적용되며, 스킬 소모량 차감은 "스킬 소모 AP에 따른 재출발"과 같은 규칙입니다.' },
     { id: 'actAfterMove', name: '이동 후 행동 가능', test: true, on: false,
       desc: '켜면 이동 후 턴을 끝내지 않고 같은 전투원이 스킬 또는 대기를 한 번 더 선택합니다. 한 턴에 이동은 한 번만 가능하며 아군과 적 모두 적용됩니다. 끄면 이동 즉시 턴을 종료합니다.' },
     { id: 'waitHeal', name: '대기 시 회복', test: true, on: false,
@@ -62,9 +65,9 @@
     { id: 'sd', name: 'SD 캐릭터 표시', on: true, builtin: true,
       desc: '라켓몬스터 방식으로 원작 SD 리그를 재생합니다(바이오로이드 206종·철충 23종). 리그가 없는 유닛은 이름표로 표시됩니다.',
       opts: [{ id: 'flipAlly', name: '아군 좌우 반전', on: false }, { id: 'flipEnemy', name: '적 좌우 반전', on: false }] }, // 기본: 아군은 오른쪽(적 쪽)을 본다
-    { id: 'hud', name: '유닛 정보 표시', on: true, builtin: true, desc: '유닛 발밑에 체력 막대와 이름·레벨을, 턴 순서 바에 행동력 게이지를 표시합니다(원작 UICreatureInfo / UIBattleCreature 구성).',
-      opts: [{ id: 'names', name: '이름·레벨 표시', on: true }, { id: 'apBars', name: '턴 순서 바에 행동력 게이지', on: true },
-        { id: 'lineup', name: '턴 순서 바 줄 세우기(원작 방식)', on: false }] }, // 끄면 경주가 끝나도 행동력 비례 위치에 그대로 둔다(2026-10-31)
+    { id: 'hud', name: '유닛 정보 표시', on: true, builtin: true, desc: '유닛 발밑에 체력 막대와 이름·레벨을, 턴 순서 바에 AP 게이지를 표시합니다(원작 UICreatureInfo / UIBattleCreature 구성).',
+      opts: [{ id: 'names', name: '이름·레벨 표시', on: true }, { id: 'apBars', name: '턴 순서 바에 AP 게이지', on: true },
+        { id: 'lineup', name: '턴 순서 바 줄 세우기(원작 방식)', on: false }] }, // 끄면 경주가 끝나도 AP 비례 위치에 그대로 둔다(2026-10-31)
   ];
   const SYS = Object.fromEntries(SYSTEMS.map((s) => [s.id, s]));
   const sysOn = (id) => !!(SYS[id] && SYS[id].on);
@@ -175,7 +178,7 @@
     if (S.forcePause) return true;
     if (!u || turn.isReserve) return false;
     if (sysOn('manual') && isPC(u)) return true;
-    if (S.playing) return true; // 자동 진행: 인게임처럼 행동력 연출 → 라운드 시작 대기 → 행동 순서로 멈춰서 시간을 맞춘다
+    if (S.playing) return true; // 자동 진행: 인게임처럼 AP 연출 → 라운드 시작 대기 → 행동 순서로 멈춰서 시간을 맞춘다
     if (sysOn('preview') || sysOn('intent')) return true; // 단계 진행: 행동 직전에 멈춰 예측·선택을 볼 수 있게
     if (sysOn('intent') && isMob(u) && !S.playing) return true;
     return false;
@@ -186,7 +189,7 @@
     const logs = b.log.slice(S.lastLog); S.lastLog = b.log.length;
     for (const e of logs) if (e.t === 'wave') logLine('stage', `웨이브 ${e.wave} 시작 · 몬스터 ${e.monsters.length}마리`);
     if (rec.type === 'input') {
-      // 인게임 순서: 라운드 시작 대기(1초) → 행동력 연출(진입 → 경주 → 유지 → 줄 세우기 → 1등 칸) → 행동
+      // 인게임 순서: 라운드 시작 대기(1초) → AP 연출(진입 → 경주 → 유지 → 줄 세우기 → 1등 칸) → 행동
       const pres = apPresentation(b, rec.turn);
       S.apAnim = { t0: performance.now() + (pres.total > 0 ? ROUND_START_WAIT * timeScale() * 1000 : 0), phases: pres.phases, total: pres.total, round: b.round };
       onInput(rec);
@@ -235,13 +238,13 @@
   const REAL_TIME_BUFFS = { turnSeconds: 10, stunSeconds: 3 }; // 실험 '버프 지속 시간화': 1턴 = 10초, 기절 3초 고정
   // 게이지 경주 연출 길이 = 엔진의 전투 시계 증가분(engine/battle.js gaugeSeconds)과 같은 값
   function apAdvanceDuration(b) { const t = (b && b.s && b.s.apAdvance) || 0; return t > 0 ? L.battle.gaugeSeconds(t) : 0.15; }
-  // 전투 계산과 같이, 연출 시작 시점에 이미 행동력이 가득 찬 행동 가능 유닛(또는 준비된 예약 공격)이 있으면 경주를 생략한다
+  // 전투 계산과 같이, 연출 시작 시점에 이미 AP가 가득 찬 행동 가능 유닛(또는 준비된 예약 공격)이 있으면 경주를 생략한다
   function apRaceSkipped(b) {
     const pre = (u) => (u.preTurnPos === undefined ? u.turnPos : u.preTurnPos);
     if (b.units.some((u) => alive(u) && !u.removed && pre(u) >= 100 && speedOf(u) > 0 && !hasB(u, 'STAGE_AP_STOP'))) return true;
     return (b.reserveSkills || []).some((r) => r.owner && alive(r.owner) && (r.previousActionPoint || 0) >= 100);
   }
-  // 이번 라운드 행동력 연출의 단계 목록(밀리초). 화면(sandbox-scene drawTrack)이 단계별로 칸 위치를 계산한다
+  // 이번 라운드 AP 연출의 단계 목록(밀리초). 화면(sandbox-scene drawTrack)이 단계별로 칸 위치를 계산한다
   function apPresentation(b, turn) {
     const k = timeScale() * 1000, phases = [];
     if (turn && turn.isMoveFollowup) return { phases, total: 0 }; // 이동 후 행동(실험 시스템)은 연출 없이 이어짐
@@ -308,7 +311,7 @@
     if (!S.playing) return;
     if (S.manual && !S.manual.sel) { stopPlay(); return; }
     let d = 0;
-    if (rec && rec.type === 'input') d = ROUND_START_WAIT * timeScale() * 1000 + (S.apAnim ? S.apAnim.total : 0); // 라운드 시작 대기 + 행동력 연출 전체
+    if (rec && rec.type === 'input') d = ROUND_START_WAIT * timeScale() * 1000 + (S.apAnim ? S.apAnim.total : 0); // 라운드 시작 대기 + AP 연출 전체
     else if (rec && rec.type === 'action') d = (S.lastAction ? S.lastAction.animDur : 1.5) * 1000; // 행동 동작이 끝날 때까지
     S.timer = setTimeout(loop, d);
   }
@@ -366,7 +369,7 @@
     if (ok && re.skillKey === s.skillKey && (re.targetAid || re.targetGridPos !== 255)) return re;
     return wait();
   }
-  // EnemyActionLock.Decide: 행동력이 찼고 이번 라운드가 자기 차례인 것처럼 꾸며 AI를 돌리고 모두 되돌린다
+  // EnemyActionLock.Decide: AP가 찼고 이번 라운드가 자기 차례인 것처럼 꾸며 AI를 돌리고 모두 되돌린다
   function computeIntent(b, u) {
     if (!b || !alive(u) || isPC(u) || b.round < 1 || u.inert) return null;
     u.reserveSkillList = u.reserveSkillList || [];

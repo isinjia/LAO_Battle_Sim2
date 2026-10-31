@@ -100,7 +100,7 @@
       if (!b) { el.innerHTML = '<div class="note">전투를 시작하면 적이 다음에 할 행동을 확인할 수 있습니다. ' + HELP.q('intents', '적의 다음 행동 도움말') + '</div>'; return; }
       if (!C.sysOn('intent')) { el.innerHTML = '<div class="note">적 행동 예측 표시가 꺼져 있습니다.</div>'; return; }
       const rows = C.intentMarkers().map((m) => `<tr><td>${esc(C.unitName(m.enemy))}</td><td>${m.enemy.gridPos + 1}</td><td class="n">${Math.round(m.enemy.turnPos)}</td><td>${esc(m.isWait ? '대기' : m.isMove ? '이동' : C.skillName(m.skillKey))}</td><td>${esc(m.target ? `${C.unitName(m.target)} (${m.target.gridPos + 1}번)` : m.targetGridPos !== 255 ? `${m.targetGridPos + 1}번 칸` : '-')}</td><td>${m.enemy.lockedIntent ? '<span class="pill" style="color:var(--it)">고정</span>' : '<span class="pill">예측</span>'}</td></tr>`);
-      el.innerHTML = `<div class="note">${C.optOn('intent', 'lock') ? '예고한 적 행동을 유지합니다. 대상이 사라지면 다른 대상을 선택하거나 대기합니다.' : '적의 차례가 되면 예고한 행동이 달라질 수 있습니다.'}</div><div class="tablewrap"><table><thead><tr><th>몬스터</th><th>칸</th><th class="n">행동력</th><th>다음 행동</th><th>대상</th><th>상태</th></tr></thead><tbody>${rows.join('') || '<tr><td colspan="6" class="note">살아 있는 몬스터가 없습니다.</td></tr>'}</tbody></table></div>
+      el.innerHTML = `<div class="note">${C.optOn('intent', 'lock') ? '예고한 적 행동을 유지합니다. 대상이 사라지면 다른 대상을 선택하거나 대기합니다.' : '적의 차례가 되면 예고한 행동이 달라질 수 있습니다.'}</div><div class="tablewrap"><table><thead><tr><th>몬스터</th><th>칸</th><th class="n">AP</th><th>다음 행동</th><th>대상</th><th>상태</th></tr></thead><tbody>${rows.join('') || '<tr><td colspan="6" class="note">살아 있는 몬스터가 없습니다.</td></tr>'}</tbody></table></div>
         `;
     };
     C.on('intents', fill); C.on('battle', fill); C.on('manual', fill); fill();
@@ -125,7 +125,7 @@
         const description = descKey ? L.name(descKey, '') : '';
         html += `<h3>${esc(C.skillName(sk.key))}</h3><div class="note">${u ? esc(C.unitName(u)) + ' · ' : ''}${passive ? '지속 효과' : '스킬 ' + C.slotOf(sk)} · 레벨 ${sk.level || 1}</div>`;
         if (description && description !== descKey && !/[{}]/.test(description)) html += `<p>${esc(clean(description))}</p>`;
-        html += rows([['대상', C.TT_KO[num(tbl,'TargetType')] || '대상 없음'], ['소모 행동력', num(lv,'NeedActionPoint')], ['사거리', u && !passive ? L.combat.skillDistance(u, sk, {}) : num(lv,'Distance')], ['공격 배율', pct(num(lv,'SkillAttackRate'))], ['속성', ['물리','화염','냉기','전기'][num(lv,'MagicSkillAttrType')] || '기타'], ['재사용 대기', C.cooldownTurns(sk) + '턴'], ['남은 재사용 대기', (sk.cooldownLeft || 0) + '턴']]);
+        html += rows([['대상', C.TT_KO[num(tbl,'TargetType')] || '대상 없음'], ['소모 AP', num(lv,'NeedActionPoint')], ['사거리', u && !passive ? L.combat.skillDistance(u, sk, {}) : num(lv,'Distance')], ['공격 배율', pct(num(lv,'SkillAttackRate'))], ['속성', ['물리','화염','냉기','전기'][num(lv,'MagicSkillAttrType')] || '기타'], ['재사용 대기', C.cooldownTurns(sk) + '턴'], ['남은 재사용 대기', (sk.cooldownLeft || 0) + '턴']]);
         const effects = u ? C.effectsOf(u, sk).filter(e => !/^Effect_/.test(e.text || e.name)) : [];
         const seen = new Set();
         const readableEffects = effects.filter(e => { const key = [e.text || e.name, e.target, Math.min(1,e.rate), e.turns].join('|'); if (seen.has(key)) return false; seen.add(key); return true; });
@@ -134,7 +134,7 @@
       } else if (u) {
         const st = L.stats, tbl = u.table || {};
         html += `<h3>${esc(C.unitName(u))}</h3><div class="note">${u.team === 1 ? '아군' : '적'} · ${esc(C.CLASS_KO[num(tbl,'ActorClassType')] || '')} · ${esc(C.ROLE_KO[num(tbl,'RoleType')] || '')}</div>`;
-        html += rows([['레벨',u.level],['배치',u.gridPos + 1 + '번 칸'],['체력',value(Math.max(0,u.hp)) + ' / ' + value(u.maxHp)],['행동력',value(u.turnPos || 0) + ' / 100'],['공격력',value(st.getAtk(u))],['방어력',value(st.getDef(u))],['행동 속도',value(st.getTurnSpeed(u))],['적중률',pct(st.getApply(u))],['회피율',pct(st.getEvade(u))],['치명타 확률',pct(st.getCri(u))]]);
+        html += rows([['레벨',u.level],['배치',u.gridPos + 1 + '번 칸'],['체력',value(Math.max(0,u.hp)) + ' / ' + value(u.maxHp)],['AP',value(u.turnPos || 0) + ' / 100'],['공격력',value(st.getAtk(u))],['방어력',value(st.getDef(u))],['AP 회복 속도',value(st.getTurnSpeed(u))],['적중률',pct(st.getApply(u))],['회피율',pct(st.getEvade(u))],['치명타 확률',pct(st.getCri(u))]]);
         html += '<h3>보유 스킬</h3>' + (u.skills || []).map((sk,i) => `<button class="inspect-skill" data-inspect-skill="${i}">${esc(C.skillName(sk.key))} <span class="note">레벨 ${sk.level || 1}${sk.cooldownLeft ? ' · 대기 ' + sk.cooldownLeft + '턴' : ''}</span></button>`).join('');
         const buffs = u.buffs || [];
         html += '<h3>현재 효과</h3>' + (buffs.length ? '<ul>' + buffs.map(b => `<li>${esc(C.buffName(b.key))}${b.leftSec !== undefined ? ' · 남은 ' + Math.max(0, b.leftSec).toFixed(1) + '초' : b.left > 0 ? ' · 남은 ' + b.left + '턴' : ''}</li>`).join('') + '</ul>' : '<div class="note">적용 중인 효과가 없습니다.</div>');

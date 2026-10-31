@@ -21,7 +21,7 @@
 
   const imgs = {};
   const img = (path) => PACKED.cached(imgs, path); // 배포판은 ImageBitmap(개발자 도구에 그림이 남지 않음)
-  const loc = (k, fb) => (DETAIL.data && DETAIL.data.loc[k]) || fb || k;
+  const loc = (k, fb) => { const v = (DETAIL.data && DETAIL.data.loc[k]) || fb || k; return typeof v === 'string' ? v.replace(/행동력/g, 'AP') : v; }; // 용어 통일: 행동력 → AP
   const fmt = (s, ...a) => String(s).replace(/\{(\d+)\}/g, (m, i) => (a[+i] !== undefined ? a[+i] : m));
   // NGUI 서식 → 그리기 함수가 아는 서식([RRGGBB] / [-])으로. [c] [/c] [sub] [/sub] 는 지우고 8자리 색은 6자리로.
   const ngui = (s) => String(s == null ? '' : s).replace(/\[\/?c\]|\[\/?sub\]|\[\/?b\]/g, '').replace(/\[([0-9a-fA-F]{6})[0-9a-fA-F]{2}\]/g, '[$1]');
@@ -79,7 +79,7 @@
   const skillsOf = (u) => (u.skills || []).filter((s) => C.slotOf(s) <= 5).slice(0, 5);
   function skillDesc(u, sk) {
     const d = DETAIL.desc && DETAIL.desc.skills[sk.key];
-    const text = d ? d.d : (DETAIL.data.skillDesc || {})[sk.key] || ''; if (!text || text === '0') return '';
+    let text = d ? d.d : (DETAIL.data.skillDesc || {})[sk.key] || ''; if (!text || text === '0') return ''; text = String(text).replace(/행동력/g, 'AP'); // 용어 통일
     const atk = (u.base && u.base[ABS][ATK.ATK]) || 0;
     const v = Math.floor(atk * (parseFloat(str(sk.levelTable, 'SkillAttackRate', '0')) || 0));
     return fmt(text, COLOR_VALUE + v + COLOR_END);
@@ -235,7 +235,7 @@
     if (DETAIL.tab === 'monster') {
       const o = lay.find((x) => x.path.endsWith('ScrollView/infoText'));
       if (o) {
-        const lines = wrap(ctx, ngui(DETAIL.data.mobInfo[u.key] || ''), o.fontSize, o.rect[2] - o.rect[0]);
+        const lines = wrap(ctx, ngui(String(DETAIL.data.mobInfo[u.key] || '').replace(/행동력/g, 'AP')), o.fontSize, o.rect[2] - o.rect[0]);
         DETAIL.mobMax = Math.max(0, lines.length * lineH(o.fontSize) - (CLIP_MOB[3] - CLIP_MOB[1]) + (CLIP_MOB[3] - o.rect[3]));
         drawLines(ctx, W, H, o, lines, CLIP_MOB, DETAIL.mobScroll = Math.min(DETAIL.mobScroll, DETAIL.mobMax));
       }

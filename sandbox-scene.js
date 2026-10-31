@@ -203,7 +203,7 @@
     if (now >= hold) { v += (u.hp - v) * Math.min(1, dt * 8); if (Math.abs(u.hp - v) < 1) v = u.hp; }
     SCENE.hp.set(u.aid, v); return v;
   }
-  // 행동력 연출 단계 (Panel_StageBattle.coTurnApEffectEndCheck → coArrangeApTrackSlots). 단계 목록은 sandbox-core apPresentation 이 만든다
+  // AP 연출 단계 (Panel_StageBattle.coTurnApEffectEndCheck → coArrangeApTrackSlots). 단계 목록은 sandbox-core apPresentation 이 만든다
   function apPhase(now) {
     const an = C.S.apAnim; if (!an || !an.phases || !an.phases.length) return null;
     if (now < an.t0) return { name: 'wait', p: 0, an };
@@ -211,7 +211,7 @@
     for (const ph of an.phases) { if (t < ph.dur) return { name: ph.name, p: ph.dur > 0 ? t / ph.dur : 1, an }; t -= ph.dur; }
     return { name: 'done', p: 1, an };
   }
-  // 게이지에 보일 행동력: 경주 단계에서만 이전 값 → 현재 값으로 채운다. 경주를 생략한 라운드는 처음부터 현재 값
+  // 게이지에 보일 AP: 경주 단계에서만 이전 값 → 현재 값으로 채운다. 경주를 생략한 라운드는 처음부터 현재 값
   function gaugeAp(pre, cur, ph) {
     if (!ph || ph.name === 'done' || ph.name === 'lineup' || ph.name === 'final' || ph.name === 'hold') return cur;
     const racing = ph.an.phases.some((p) => p.name === 'advance');
@@ -451,7 +451,7 @@
   // =====================================================================================================
   //  원작 프리팹 UI: Panel_StageBattle / UIBattleCreature / UICreatureInfo 의 위젯 배치를 그대로 그린다 (sandbox-ui.js)
   // =====================================================================================================
-  // 행동력 트랙 상수: UIBattleCreature.cs AP_TRACK_LEFT_X -920 / RIGHT_X -15 / ALLY_Y 150 / ENEMY_Y 50 / FIRST_Y 100, _apWinnerScale 0.85,
+  // AP 트랙 상수: UIBattleCreature.cs AP_TRACK_LEFT_X -920 / RIGHT_X -15 / ALLY_Y 150 / ENEMY_Y 50 / FIRST_Y 100, _apWinnerScale 0.85,
   //  Panel_StageBattle._turnApSlotSpacing 102, _apWinnerSlotExtraSpacing 14, _turnApWaveEntryDuration 0.7, _turnApWaveEntryInterval 0.1, UIConstants.Scale65
   //  칸은 UI_BattleCreatureScroll/ScrollView(화면 왼쪽 아래 고정) 기준이고, ScrollView 패널의 잘림 영역(중심 -555,155 크기 1150x310) 밖은 그리지 않는다.
   const AP_TRACK = { LEFT_X: -920, RIGHT_X: -15, ALLY_Y: 150, ENEMY_Y: 50, FIRST_Y: 100, SLOT: 102, WINNER_GAP: 14, SCALE: 0.65, WINNER_SCALE: 0.85, WAVE_ENTRY: 0.7, WAVE_INTERVAL: 0.1, CLIP: [-555, 155, 1150, 310] };
@@ -480,7 +480,7 @@
     ctx.fillStyle = 'rgba(170,178,190,0.80)'; ctx.fill();
     const effs = curSk && who ? C.effectsOf(who, curSk).filter((e) => e.icon).slice(0, 5) : [];
     effs.forEach((e, i) => { const im = sprite(e.icon); if (im) ctx.drawImage(im, R - 290 + i * 40, B - 257, 34, 34); });
-    // 총 행동력 "AP n" (행동 중인 유닛의 행동력 게이지)
+    // 총 AP "AP n" (행동 중인 유닛의 AP 게이지)
     // 버튼 4개
     const skills = who ? C.activeSkills(who) : [];
     const s1 = skills.find((s) => C.slotOf(s) === 1), s2 = skills.find((s) => C.slotOf(s) === 2);
@@ -512,8 +512,8 @@
       const apBadge = C.sysOn('skillApReturn') || C.sysOn('moveApCost');
       if (kind === 'skill' && apBadge) { const ap = sk ? num(sk.levelTable, 'NeedActionPoint') : 0; const w1 = text(ctx, 'AP', bcx - 24, bcy + 1, { size: 19, color: '#5ec8f0', outline: false }); text(ctx, `-${ap}`, bcx - 24 + w1 + 4, bcy + 1, { size: 23, color: '#fff', outline: false }); }
       else if (kind === 'skill') text(ctx, `Skill${k + 1}`, bcx, bcy + 1, { size: 21, align: 'center', color: '#fff', outline: false });
-      else if (kind === 'move' && C.sysOn('moveApCost')) { const w1 = text(ctx, 'AP', bcx - 24, bcy + 1, { size: 19, color: '#5ec8f0', outline: false }); text(ctx, '-2', bcx - 24 + w1 + 4, bcy + 1, { size: 23, color: '#fff', outline: false }); } // 이동 AP 20 = 소모 행동력 2
-      else if (kind === 'wait' && apBadge) { const w1 = text(ctx, 'AP', bcx - 24, bcy + 1, { size: 19, color: '#5ec8f0', outline: false }); text(ctx, '-5', bcx - 24 + w1 + 4, bcy + 1, { size: 23, color: '#fff', outline: false }); } // 대기 AP 50 = 소모 행동력 5
+      else if (kind === 'move' && C.sysOn('moveApCost')) { const w1 = text(ctx, 'AP', bcx - 24, bcy + 1, { size: 19, color: '#5ec8f0', outline: false }); text(ctx, '-2', bcx - 24 + w1 + 4, bcy + 1, { size: 23, color: '#fff', outline: false }); } // 이동 AP 20 = 소모 AP 2
+      else if (kind === 'wait' && apBadge) { const w1 = text(ctx, 'AP', bcx - 24, bcy + 1, { size: 19, color: '#5ec8f0', outline: false }); text(ctx, '-5', bcx - 24 + w1 + 4, bcy + 1, { size: 23, color: '#fff', outline: false }); } // 대기 AP 50 = 소모 AP 5
       else text(ctx, kind === 'move' ? 'Move' : 'Wait', bcx, bcy + 1, { size: 23, align: 'center', color: '#fff', outline: false });
       // 3x3 범위 격자
       let on = [];
@@ -565,10 +565,10 @@
     // 수동 대상 선택 중 미리보기 창 (SkillPreview: 승인 버튼 옆)
     if (m && m.sel && !m.needPlay && pv && C.sysOn('preview')) { const h = SCENE.hits.find((x) => x.kind === 'confirm'); if (h) drawPreviewPanel(ctx, pv, h.x + h.w / 2, h.y + h.h / 2, h.x + h.w / 2 > W * 0.62); }
   }
-  // 행동력 트랙 (UIBattleCreature 들): Anchor 기준 좌표. 인게임과 같은 순서로 칸을 움직인다.
-  //  라운드 시작 대기 → 진입(직전 칸 → 이전 행동력 위치) → 경주(행동력 비례 이동) → 유지 → 줄 세우기(1등 칸 비우고 우승자부터 자기 줄에)
-  //  → 우승자는 두 줄 사이 공통 1등 칸으로(0.85 배율), 나머지는 행동력 순으로 한 칸씩 앞으로. 경주를 생략한 라운드는 줄 세우기부터.
-  //  새로 생긴 칸(웨이브 시작·소환)은 왼쪽 화면 밖에서 진영별 대기 칸으로 입장한다. 예약(지연) 공격은 독립 행동력을 가진 칸으로 함께 선다.
+  // AP 트랙 (UIBattleCreature 들): Anchor 기준 좌표. 인게임과 같은 순서로 칸을 움직인다.
+  //  라운드 시작 대기 → 진입(직전 칸 → 이전 AP 위치) → 경주(AP 비례 이동) → 유지 → 줄 세우기(1등 칸 비우고 우승자부터 자기 줄에)
+  //  → 우승자는 두 줄 사이 공통 1등 칸으로(0.85 배율), 나머지는 AP 순으로 한 칸씩 앞으로. 경주를 생략한 라운드는 줄 세우기부터.
+  //  새로 생긴 칸(웨이브 시작·소환)은 왼쪽 화면 밖에서 진영별 대기 칸으로 입장한다. 예약(지연) 공격은 독립 AP를 가진 칸으로 함께 선다.
   function drawTrack(ctx, now, markers) {
     const b = C.S.battle; if (!b) return;
     const anchor = UI.find('battle', 'UI_BattleCreatureScroll/ScrollView');
@@ -580,7 +580,7 @@
     const easeInOut = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2), easeOut = (p) => 1 - (1 - p) * (1 - p);
     const clamp01 = (v) => Math.max(0, Math.min(1, v)), lerp = (p, q, k) => p + (q - p) * k;
     const mix = (p, q, k) => ({ x: lerp(p.x, q.x, k), y: lerp(p.y, q.y, k), s: lerp(p.s === undefined ? AP_TRACK.SCALE : p.s, q.s === undefined ? AP_TRACK.SCALE : q.s, k) });
-    // GetApTrackSlotPosition: 공통 1등 칸(우승자 확대 폭만큼) 뒤로 102 간격. GetApTrackPosition: 왼쪽 끝 ~ 2등 칸을 행동력 0~100 으로
+    // GetApTrackSlotPosition: 공통 1등 칸(우승자 확대 폭만큼) 뒤로 102 간격. GetApTrackPosition: 왼쪽 끝 ~ 2등 칸을 AP 0~100 으로
     const ratio = AP_TRACK.WINNER_SCALE / AP_TRACK.SCALE, winnerSlot = Math.max(1, ratio);
     const slotX = (i) => AP_TRACK.RIGHT_X - (Math.max(0, i) + winnerSlot) * AP_TRACK.SLOT - AP_TRACK.WINNER_GAP;
     const apX = (ap) => lerp(AP_TRACK.LEFT_X, slotX(0), clamp01(ap / 100));
@@ -591,7 +591,7 @@
     const slotPos = (it, i) => ({ x: slotX(i), y: trackY(it.ally), s: AP_TRACK.SCALE });
     const apPos = (it, ap) => ({ x: apX(ap), y: trackY(it.ally), s: AP_TRACK.SCALE });
 
-    // 트랙 항목: 살아 있는 유닛 + 독립 행동력을 가진 예약(지연) 공격 (AddReservedActionPointUI)
+    // 트랙 항목: 살아 있는 유닛 + 독립 AP를 가진 예약(지연) 공격 (AddReservedActionPointUI)
     const items = [];
     for (const u of b.units) if (C.alive(u)) items.push({ key: 'u' + u.aid, u, ally: C.isPC(u) || (u.type === 'SUMMON' && u.team === 1), pre: u.preTurnPos === undefined ? u.turnPos : u.preTurnPos, cur: u.turnPos });
     for (const r of b.reserveSkills || []) if (r.owner && C.alive(r.owner)) {
@@ -601,7 +601,7 @@
     const byKey = new Map(items.map((it) => [it.key, it]));
     const ranked = (wk) => items.filter((it) => it.key !== wk).sort((p, q) => (q.cur - p.cur) || (p.u.aid - q.u.aid)); // TurnValue 내림차순, Aid 보조
     // coArrangeApTrackSlots 1단계: 1등 칸을 비워 둔 채 우승자부터 자기 진영 칸에 줄 세움. 2단계: 우승자는 공통 1등 칸, 나머지는 한 칸 앞으로
-    // 줄 세우기를 끄면(기본) 경주가 끝나도 각 칸을 행동력 비례 위치에 두고 우승자만 공통 1등 칸으로 올린다. 재출발 위치(예: 60)가 그대로 보인다 (2026-10-31)
+    // 줄 세우기를 끄면(기본) 경주가 끝나도 각 칸을 AP 비례 위치에 두고 우승자만 공통 1등 칸으로 올린다. 재출발 위치(예: 60)가 그대로 보인다 (2026-10-31)
     const useLineup = C.optOn('hud', 'lineup');
     const lineupLayout = (wk) => {
       const out = new Map();
@@ -698,7 +698,7 @@
     // 스킬별 재출발 위치 미리보기: 차례가 시작되면 1번 스킬이 자동으로 눌리므로 그때부터 보인다. 스킬 버튼을 누르면 그 스킬 기준으로 바뀐다.
     // 이동 후 행동이면 이미 쓴 이동 AP 20을 포함해 계산한다 (2026-10-31)
     // 라운드 시작 대기·경주 연출이 끝나 실제로 그 전투원의 차례가 된 뒤에만 보인다(연출 중·대기 중에는 미리 보이지 않음)
-    // 이동(이동 시 AP 20 소모가 켜진 경우)과 대기(소모 행동력 5 고정)도 같은 방식으로 표시한다
+    // 이동(이동 시 AP 20 소모가 켜진 경우)과 대기(소모 AP 5 고정)도 같은 방식으로 표시한다
     const turnArrived = !ph || ph.name === 'done';
     let previewCost = null; // 트랙 단위 소모량
     if (manual && manual.mode === 'skill' && manual.skill) previewCost = num(manual.skill.levelTable, 'NeedActionPoint') * 10;
