@@ -552,7 +552,10 @@
     // 승인 버튼 (UI_ATK_Confirm): 버튼 중심을 대상 선택 표식(회전 삼각형) 중심에, 이동 확정은 목적지 칸에 맞춘다
     if (m && m.sel && (!m.needPlay || moveConfirm)) {
       const t = m.sel.targetAid ? C.byAid(m.sel.targetAid) : null;
-      const center = moveConfirm ? cellPos(m.unit.team, m.sel.targetGridPos) : markCenter(t || m.unit);
+      // 칸을 고르는 스킬(화염 폭격 등)은 고른 칸 위에 승인 버튼을 둔다. 시전자 위에 뜨던 문제 수정 (2026-10-31)
+      const cellSel = m.mode === 'skill' && !m.sel.targetAid && m.sel.targetGridPos !== 255 && m.cands && m.cands.kind === 'cell';
+      const cellCenter = () => { const c = cellPos(m.cands.side, m.sel.targetGridPos); return { x: c.x, y: c.y - 70 * c.f }; };
+      const center = moveConfirm ? cellPos(m.unit.team, m.sel.targetGridPos) : cellSel ? cellCenter() : markCenter(t || m.unit);
       const button = UI.find('battle', 'UI_ATK_Confirm/UI_ATK_Confirm_BTN_BG');
       const rx = button ? (button.rect[0] + button.rect[2]) / 2 : 344, ry = button ? (button.rect[1] + button.rect[3]) / 2 : 33;
       ov['Panel_StageBattle/UI_ATK_Confirm'] = { active: true, move: [center.x - W / 2 - rx, (H / 2 - center.y) - ry] };

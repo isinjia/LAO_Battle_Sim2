@@ -172,8 +172,11 @@
   document.addEventListener('keydown', (ev) => { if (ev.key === 'F1') { ev.preventDefault(); HELP.open(HELP.current || 'start'); } });
 
   // ---------------------------------------------------------------- 버전과 패치노트
-  HELP.VERSION = 'V1.28';
+  HELP.VERSION = 'V1.29';
   HELP.NOTES = [
+    { version: 'V1.29', date: '2026-10-31', items: [
+      '칸을 고르는 스킬(그리폰 화염 폭격 등)의 승인 버튼이 시전자 위에 뜨던 문제 수정: 고른 칸 위에 표시',
+    ] },
     { version: 'V1.28', date: '2026-10-31', items: [
       '용어 정리: 시뮬레이터 화면·설정·도움말에서 "행동력"을 "AP"로 통일(AP가 100이 되면 행동). AP가 차오르는 속도는 "AP 회복 속도"로 부름. 게임 자료에서 오는 효과·스킬 이름·설명도 화면에서는 AP로 바꿔 보임(자료 자체는 그대로)',
     ] },
