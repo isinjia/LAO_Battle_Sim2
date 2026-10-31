@@ -694,22 +694,37 @@
     ctx.restore();
     const manual = S.manual;
     const winnerUnit = wk && byKey.has(wk) ? byKey.get(wk).u : null;
-    if (C.sysOn('skillReturnPreview') && (C.sysOn('skillApReturn') || C.sysOn('moveApCost')) && manual && manual.mode === 'skill' && manual.skill && winnerUnit === manual.unit) {
-      const cost = num(manual.skill.levelTable, 'NeedActionPoint');
-      const spent = (manual.unit.flags && manual.unit.flags.apCost) || 0; // 이동 후 행동이면 이미 쓴 이동 AP 20을 포함
-      const percent = Math.max(0, Math.min(100, 100 - spent - cost * 10));
-      const returnX = apX(percent);
-      const ally = C.isPC(manual.unit) || manual.unit.team === 1;
-      const cx = W / 2 + ax + returnX + (fr[0] + fr[2]) / 2 * AP_TRACK.SCALE;
+    // 스킬별 재출발 위치 미리보기: 그 전투원의 차례가 시작되면(입력 대기) 쓸 수 있는 스킬마다 돌아갈 위치를 표시한다.
+    // 고른 스킬은 밝게, 나머지는 흐리게. 소모량이 같은 스킬은 한 표시로 묶는다. 이동을 고른 중이면 이동 AP 20까지 뺀 위치 (2026-10-31)
+    if (C.sysOn('skillReturnPreview') && (C.sysOn('skillApReturn') || C.sysOn('moveApCost')) && manual && winnerUnit === manual.unit && !manual.needPlay) {
+      const u = manual.unit;
+      let spent = (u.flags && u.flags.apCost) || 0; // 이동 후 행동이면 이미 쓴 이동 AP 20을 포함
+      if (manual.mode === 'move' && C.sysOn('moveApCost')) spent += 20;
+      const usable = C.activeSkills(u).filter((s) => !(s.cooldownLeft > 0) && !C.hasB(u, 'STAGE_SEAL_SKILL'));
+      const groups = new Map();
+      for (const s of usable) {
+        const cost = num(s.levelTable, 'NeedActionPoint');
+        const percent = Math.max(0, Math.min(100, 100 - spent - cost * 10));
+        const g = groups.get(percent) || { percent, slots: [], chosen: false }; g.slots.push(C.slotOf(s)); if (manual.skill === s) g.chosen = true; groups.set(percent, g);
+      }
+      const ally = C.isPC(u) || u.team === 1;
       const cy = H / 2 - ay - trackY(ally) - (fr[1] + fr[3]) / 2 * AP_TRACK.SCALE;
       const radius = Math.abs(fr[2] - fr[0]) * AP_TRACK.SCALE / 2;
-      ctx.save();
-      ctx.strokeStyle = '#7ddcff'; ctx.fillStyle = 'rgba(70,180,255,0.18)'; ctx.lineWidth = 3;
-      ctx.setLineDash([7, 5]); ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(cx, cy - radius - 8); ctx.lineTo(cx, cy + radius + 8); ctx.stroke();
-      ctx.setLineDash([]);
-      text(ctx, `재출발 ${percent}%`, Math.max(95, Math.min(W - 95, cx)), cy - radius - 22, { size: 21, align: 'center', color: '#7ddcff' });
-      ctx.restore();
+      const anyChosen = manual.mode === 'skill' && !!manual.skill;
+      const list = Array.from(groups.values()).sort((p, q) => (p.chosen ? 1 : 0) - (q.chosen ? 1 : 0)); // 고른 것을 맨 위에 그린다
+      for (const g of list) {
+        const dim = anyChosen && !g.chosen;
+        const cx = W / 2 + ax + apX(g.percent) + (fr[0] + fr[2]) / 2 * AP_TRACK.SCALE;
+        const color = dim ? 'rgba(125,220,255,0.45)' : '#7ddcff';
+        ctx.save();
+        ctx.strokeStyle = color; ctx.fillStyle = dim ? 'rgba(70,180,255,0.08)' : 'rgba(70,180,255,0.18)'; ctx.lineWidth = dim ? 2 : 3;
+        ctx.setLineDash([7, 5]); ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx, cy - radius - 8); ctx.lineTo(cx, cy + radius + 8); ctx.stroke();
+        ctx.setLineDash([]);
+        const label = `${g.slots.sort().map((n) => n + '번').join('·')} ${g.percent}%`;
+        text(ctx, label, Math.max(95, Math.min(W - 95, cx)), cy - radius - 22, { size: dim ? 18 : 21, align: 'center', color });
+        ctx.restore();
+      }
     }
   }
   // 유닛 정보 (UICreatureInfo): 발밑 체력 막대(LineView), 선택 시 상태 창(SelectState) + 예상 명중률(SelectTarget)
