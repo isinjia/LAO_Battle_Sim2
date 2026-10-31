@@ -155,6 +155,15 @@
   }
 
   // GetNextActionPointAdvanceTime
+  // 전투 시계(실험 '버프 지속 시간화'): AP 게이지가 차는 동안만 흐른다. 라운드 전진 시간 t 를 게이지 연출 길이(0.15~2초, 배속 무관)로 환산한다.
+  //  행동 연출·입력 대기 중에는 흐르지 않으므로 이 값의 누적이 곧 전투 시간이다. 누가 이미 100이면(경주 생략) 0.
+  const gaugeSeconds = (t) => (t > 0 ? Math.min(2, Math.max(0.15, t * 0.2)) : 0);
+  function advanceClock(b, t) {
+    const sec = gaugeSeconds(t);
+    b.s.apAdvanceSec = sec; b.clock = (b.clock || 0) + sec;
+    if (b.hooks && b.hooks.realTimeBuffs && b.hooks.realTimeBuffs() && LOSim.buffs && LOSim.buffs.tickTime) LOSim.buffs.tickTime(b, sec);
+  }
+  B.gaugeSeconds = gaugeSeconds;
   function nextAPAdvanceTime(b, list) {
     let t = Infinity;
     for (const u of list) {
@@ -376,6 +385,7 @@
     }));
     turns.sort(turnCompare(b));
     b.s.apAdvance = t; b.apTime += t;
+    advanceClock(b, t);
     acquireTurnStart(b, turns);
     roundStarted(b, turns);
   }
@@ -494,6 +504,7 @@
     }));
     for (const r of b.reserveSkills) if (r.owner) turns.push(reserveTurn(b, r));
     turns.sort(turnCompare(b));
+    advanceClock(b, t);
     acquireTurnStart(b, turns);
     roundStarted(b, turns);
   }

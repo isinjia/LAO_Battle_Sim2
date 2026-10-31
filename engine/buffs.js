@@ -294,6 +294,28 @@
   const rowOf = (key) => (key && LOSim.T('Table_BuffEffect', key)) || null;
   const rng = (battle) => (battle && battle.rng ? battle.rng() : 0);
   const isDurationErase = (e) => e === ER.ROUND || e === ER.TURN; // LOEffect.IsDurationEraseType (renewal)
+  // ---- 실험 시스템 '버프 지속 시간화'(2026-10-31): 지속형(ROUND/TURN) 버프를 턴 수가 아니라 초(전투 시계)로 센다.
+  //  시계는 battle.js 가 AP 게이지가 차는 시간(라운드 전진 시간의 연출 길이)만큼만 돌린다. 연출·입력 대기 중에는 흐르지 않는다.
+  //  기절(STAGE_AP_STOP)은 테이블 턴 수와 무관하게 stunSeconds(기본 3초)로 고정하고 보스(MonsterType 2)는 면역.
+  //  나머지 지속형은 턴 수 × turnSeconds(기본 10초). 켜져 있으면 턴 종료 시 턴 수 차감은 하지 않는다.
+  const timeMode = (battle) => (battle && battle.hooks && battle.hooks.realTimeBuffs && battle.hooks.realTimeBuffs()) || null; // {turnSeconds, stunSeconds} | null
+  const isBossUnit = (u) => !!u && u.type === 'MONSTER' && num(u.table || {}, 'MonsterType') === 2;
+  const secondsFor = (mode, type, leftTurnCount) => (type === BT.STAGE_AP_STOP ? mode.stunSeconds : leftTurnCount * mode.turnSeconds);
+  // 전투 시계가 sec 초 흐름: 초 단위 지속 버프를 줄이고 다 된 것을 지운다
+  function tickTime(battle, sec) {
+    if (!(sec > 0)) return;
+    for (const unit of allUnits(battle)) {
+      if (!alive(unit)) continue;
+      let changed = false;
+      for (const b of unit.buffs.slice()) {
+        if (b.leftSec === undefined) continue;
+        b.leftSec -= sec;
+        if (b.leftSec <= 0) { removeBuff(battle, unit, b, 'expired'); changed = true; }
+      }
+      if (changed) { recalc(battle, unit); updateBuff(battle, unit); }
+    }
+    lastBuffCheck(battle, {});
+  }
   const isTurnTrigger = (t) => t >= TR.TURN_START_SELF && t <= TR.TURN_END_ALL; // BattleManager.IsCreatureTurnTrigger
   const TYPE_ORDER = { CHARACTER: 1, MONSTER: 2, SUMMON: 3 };
   const BEATEN_FAMILY = new Set([TR.BEATEN, TR.BEATEN_FIRE, TR.BEATEN_ICE, TR.BEATEN_LIGHTNING, TR.BEATEN_PHY, TR.ON_EVADE,
@@ -746,13 +768,13 @@
       }
     } else if (overType === OV.ADDTURN && !isItem) {
       if (skillType(skill) === E.SKILL_TYPE.ACTIVE && has(target, type)) {
-        for (const b of list_(target, type)) b.left += leftTurnCount; // Common.AddRound
+        for (const b of list_(target, type)) { b.left += leftTurnCount; if (b.leftSec !== undefined) b.leftSec += secondsFor(timeMode(battle) || { turnSeconds: 0, stunSeconds: 0 }, type, leftTurnCount); } // Common.AddRound
         skipAdd = true;
       }
     } else if (overType === OV.OVERLAP && !isItem) {
       if (skillType(skill) === E.SKILL_TYPE.ACTIVE && has(target, type)) {
         for (const b of list_(target, type)) { // Common.AddEffect
-          b.left = leftTurnCount; b.value = val;
+          b.left = leftTurnCount; b.value = val; if (b.leftSec !== undefined) b.leftSec = secondsFor(timeMode(battle) || { turnSeconds: 0, stunSeconds: 0 }, type, leftTurnCount);
           if (!(overMax > 0 && overMax - 1 <= b.overlapped)) { b.overlapped += 1; b.attrValue += F(levelValue(b)); }
         }
         skipAdd = true;
@@ -760,6 +782,8 @@
     }
 
     if (!skipAdd) {
+      const tm = timeMode(battle);
+      if (tm && isDurationErase(eraseType) && leftTurnCount > 0) buff.leftSec = secondsFor(tm, type, leftTurnCount);
       target.buffs.push(buff);
       log(battle, { op: 'apply', unit: target.aid, key: row.Key, slot: sortIndex, type: typeName(type), value: val, left: leftTurnCount, from: attackerAid, lv: skillLevel + addSkillLevel });
     } else log(battle, { op: 'stack', unit: target.aid, key: row.Key, type: typeName(type), mode: overType === OV.ADDTURN ? 'ADDTURN' : 'OVERLAP' });
@@ -827,6 +851,7 @@
       const t = num(row, 'BuffEffectType' + i);
       if (!rateCheck(rate + upRate, t)) continue;
       if (immune(immList, t) || immune(disList, t) || immune(enumDis, t)) continue;
+      if (t === BT.STAGE_AP_STOP && timeMode(battle) && isBossUnit(target)) { log(battle, { op: 'immune', unit: target.aid, key: row.Key, type: typeName(t), reason: 'boss' }); continue; } // 보스는 기절 면역
       const b = applyBuffSub(battle, target, isItem, triggerFrom, i, skill, row, t,
         fnum(row, 'BuffEffectValue' + i), fnum(row, 'BuffEffectLevelValue' + i),
         num(row, 'BuffEffectOverlapType' + i), num(row, 'BuffEffectLeftCount' + i), attackerAid,
@@ -1296,7 +1321,7 @@
     applyDot(battle, unit);
     for (const b of snapshot) {
       if (!unit.buffs.includes(b)) continue;
-      if (isDurationErase(b.eraseType)) { // LOEffect.reduceBuffTurns(true)
+      if (isDurationErase(b.eraseType) && b.leftSec === undefined) { // LOEffect.reduceBuffTurns(true). 초 단위 버프는 시계가 줄인다
         --b.left;
         if (b.left < 1) removeBuff(battle, unit, b, 'expired');
       }
@@ -1500,7 +1525,7 @@
     attrValue, list: list_, hasKey, countKey, levelValue,
     // hooks for combat.js / battle.js
     triggerOwner, updateBuff, updateAll, removeRoundZero, lastBuffCheck, onHit, onAllyHit, afterSkill, onDeath, onUnitRemoved,
-    eraseTrigger, consumeAttackPassiveCounts, consumeShieldCount, removeStack, applyDot, buffDamage,
+    eraseTrigger, consumeAttackPassiveCounts, consumeShieldCount, removeStack, applyDot, buffDamage, tickTime, isBossUnit,
     // internals exposed for tests / tooling
     _checkTriggerApplyCondition: checkTriggerApplyCondition, _isGridInPos: isGridInPos, _applyBuff: applyBuff,
     STATUS: statusOf, NOTES, ANOMALY_AID,

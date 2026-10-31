@@ -42,6 +42,8 @@
       desc: '스킬 소모 행동력에 따른 재출발(또는 이동 시 AP 20 소모 후 행동) 실험을 함께 켜면, 그 전투원의 차례가 시작될 때부터(1번 스킬이 자동으로 눌린 상태) 고른 스킬 사용 후 돌아갈 위치를 턴바의 하늘색 점선과 백분율로 표시합니다. 다른 스킬 버튼을 누르면 그 스킬 기준으로 바뀌고, 이동(AP 20 소모가 켜진 경우)과 대기(소모 5)를 고르면 그 기준으로 표시합니다. 이동 후 행동이면 이미 쓴 이동 AP 20을 포함합니다. 스킬에 지정된 소모량 기준이며 별도 행동력 효과는 포함하지 않습니다.' },
     { id: 'slotCooldown', name: '스킬 쿨타임 적용', test: true, on: false,
       desc: '켜면 아군과 적의 1번 스킬은 재사용 대기 없이 사용하고, 2번 스킬은 지정된 재사용 대기를 적용합니다. 끄면 두 스킬 모두 기존 설정을 따릅니다.' },
+    { id: 'realTimeBuffs', name: '버프 지속 시간화(초)', test: true, on: true,
+      desc: '켜면 지속형(라운드·턴) 버프·디버프를 턴 수 대신 초로 셉니다. 시계는 턴 순서 바에서 AP 게이지가 차는 동안만 흐르고(라운드마다 0.15~2초, 배속과 무관) 스킬·이동 연출과 입력 대기 중에는 멈춥니다. 능력치 버프·디버프·지속 피해는 1턴 = 10초(3턴이면 30초), 기절(AP 정지)은 테이블 값과 무관하게 3초로 고정하며 AP는 깎지 않습니다(풀리면 그대로 행동). 보스(몬스터 종류 2)는 기절 면역. 지속 피해는 전과 같이 자기 턴이 끝날 때 들어갑니다. 전투 화면 왼쪽 위에 전투 시간을, 효과 목록에 남은 초를 표시합니다. 2026-10-31 전투 피드백 4번 결정 사항. 전투 중에 바꾸면 그 뒤 새로 걸리는 버프부터 적용됩니다.' },
     { id: 'apSpeed2x', name: 'AP 회복 속도 2배', test: true, on: true,
       desc: '켜면 아군·적 모든 전투원과 예약(지연) 공격의 행동력 회복 속도를 2배로 계산합니다. 전투원끼리의 상대 순서는 그대로이고, 라운드마다 행동력이 차는 시간이 절반이 되어 턴 순서 바의 경주 연출이 짧아지며 행동력을 정해진 양만큼 더하거나 빼는 효과(행동력 증감)는 상대적으로 절반의 영향만 줍니다. 2026-10-31 전투 피드백. 전투 중에 바꾸면 다음 라운드 계산부터 적용되고, 이미 걸어 둔 예약 공격의 회복 속도는 바뀌지 않습니다.' },
     { id: 'noCooldown', name: '스킬 쿨타임 삭제', test: true, on: true,
@@ -150,7 +152,8 @@
     const seed = +setup.seed || 1;
     const b = L.battle.create({ stageKey: null, mode: 'stage', squad: squadSpecs(), seed, logEnabled: true, customWaves: [enemyWave()], options: { maxActions: +setup.maxActions || 2000 } });
     b.rng = makeRng(seed);
-    b.hooks = { beforeAction, skillApReturn: () => sysOn('skillApReturn'), cooldownTurns, actAfterMove: () => sysOn('actAfterMove'), moveApCost: () => sysOn('moveApCost'), waitHeal: () => sysOn('waitHeal') };
+    b.hooks = { beforeAction, skillApReturn: () => sysOn('skillApReturn'), cooldownTurns, actAfterMove: () => sysOn('actAfterMove'), moveApCost: () => sysOn('moveApCost'), waitHeal: () => sysOn('waitHeal'),
+      realTimeBuffs: () => (sysOn('realTimeBuffs') ? REAL_TIME_BUFFS : null) };
     L.battle.turnSpeedMul = sysOn('apSpeed2x') ? 2 : 1;
     S.battle = b; S.lastLog = 0; S.forcePause = true; S.log = []; S.result = null;
     if (b.result === 'error') { logLine('issue', '<b>전투를 시작하지 못했습니다. 배치를 확인하고 다시 시작해 주세요.</b>'); emit('battle'); return false; }
@@ -229,7 +232,9 @@
   const SPEED_SCALE = { 1: 1, 2: 0.5, 3: 0.2, 4: 0 };
   const timeScale = () => (SPEED_SCALE[+setup.speed] !== undefined ? SPEED_SCALE[+setup.speed] : 1);
   const AP_PRESENT = { entry: 0.3, hold: 0.35, arrange: 0.25 };
-  function apAdvanceDuration(b) { const t = (b && b.s && b.s.apAdvance) || 0; return t > 0 ? Math.min(2, Math.max(0.15, t * 0.2)) : 0.15; }
+  const REAL_TIME_BUFFS = { turnSeconds: 10, stunSeconds: 3 }; // 실험 '버프 지속 시간화': 1턴 = 10초, 기절 3초 고정
+  // 게이지 경주 연출 길이 = 엔진의 전투 시계 증가분(engine/battle.js gaugeSeconds)과 같은 값
+  function apAdvanceDuration(b) { const t = (b && b.s && b.s.apAdvance) || 0; return t > 0 ? L.battle.gaugeSeconds(t) : 0.15; }
   // 전투 계산과 같이, 연출 시작 시점에 이미 행동력이 가득 찬 행동 가능 유닛(또는 준비된 예약 공격)이 있으면 경주를 생략한다
   function apRaceSkipped(b) {
     const pre = (u) => (u.preTurnPos === undefined ? u.turnPos : u.preTurnPos);

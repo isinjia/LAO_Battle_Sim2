@@ -750,7 +750,8 @@
     UI.draw(ctx, lay, { W, H, ox, oy, scale: sc, ov });
     const tbl = selected ? [15.9, -19.1] : [7.9, -6], ER = C.E.BUFFEFFECT_ERASE_TYPE, pad = 1.25, size = 35, pitch = size + pad * 2;
     const at = (col, row) => ({ x: W / 2 + ox + (tbl[0] + pad + size / 2 + col * pitch) * sc, y: H / 2 - oy - (tbl[1] - pad - size / 2 - row * pitch) * sc });
-    const lastTurn = (bf) => (bf.eraseType === ER.ROUND || bf.eraseType === ER.TURN) && bf.left <= 1 && num(bf.row, 'BuffEffectLeftCount' + bf.sortIndex) !== 0;
+    // 초 단위 버프(실험 '버프 지속 시간화')는 남은 3초부터 깜빡인다
+    const lastTurn = (bf) => (bf.leftSec !== undefined ? bf.leftSec <= 3 : (bf.eraseType === ER.ROUND || bf.eraseType === ER.TURN) && bf.left <= 1 && num(bf.row, 'BuffEffectLeftCount' + bf.sortIndex) !== 0);
     const blinkA = () => { const ph = (performance.now() / 800) % 2; return 1 - 0.7 * (ph < 1 ? ph : 2 - ph); }; // TweenAlpha 1 → 0.3 (0.8초 왕복)
     if (groups) { // 시험: 효과 아이콘 대신 그 효과를 건 스킬 아이콘(정보창 새 방식과 같은 묶음: 같은 효과·시전자·남은 턴). 2중첩 이상이면 중첩 수
       groups.slice(0, 7).forEach((e, i) => {
@@ -770,7 +771,7 @@
       const im = sprite(name); const col = n % 4, row = Math.floor(n / 4); n++;
       if (!im) continue;
       // 지속 턴 효과의 마지막 턴: TweenAlpha 1 → 0.3 (0.8초 왕복)
-      const blink = (bf.eraseType === ER.ROUND || bf.eraseType === ER.TURN) && bf.left <= 1 && num(bf.row, 'BuffEffectLeftCount' + bf.sortIndex) !== 0;
+      const blink = lastTurn(bf);
       const ph = (performance.now() / 800) % 2, a = blink ? 1 - 0.7 * (ph < 1 ? ph : 2 - ph) : 1;
       const cx = tbl[0] + pad + size / 2 + col * pitch, cy = tbl[1] - pad - size / 2 - row * pitch;
       drawImg(ctx, im, W / 2 + ox + cx * sc, H / 2 - oy - cy * sc, size * sc, size * sc, a);
@@ -858,7 +859,7 @@
   }
   function drawTopInfo(ctx) {
     const b = C.S.battle; if (!b) return;
-    text(ctx, `웨이브 ${Math.min(b.waveIndex + 1, b.waves.length)}/${b.waves.length} · 행동 ${b.totalActions}`, 24, 30, { size: 20, color: '#dfe7f0' });
+    text(ctx, `웨이브 ${Math.min(b.waveIndex + 1, b.waves.length)}/${b.waves.length} · 행동 ${b.totalActions}` + (C.sysOn('realTimeBuffs') ? ` · 전투 시간 ${(b.clock || 0).toFixed(1)}초` : ''), 24, 30, { size: 20, color: '#dfe7f0' });
     const on = C.SYSTEMS.filter((s) => s.test && s.on).map((s) => s.name).join(' · ');
     if (on) text(ctx, '시험 중: ' + on, 24, H - 56, { size: 17, color: '#ffd86e' });
   }

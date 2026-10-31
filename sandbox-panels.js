@@ -137,7 +137,7 @@
         html += rows([['레벨',u.level],['배치',u.gridPos + 1 + '번 칸'],['체력',value(Math.max(0,u.hp)) + ' / ' + value(u.maxHp)],['행동력',value(u.turnPos || 0) + ' / 100'],['공격력',value(st.getAtk(u))],['방어력',value(st.getDef(u))],['행동 속도',value(st.getTurnSpeed(u))],['적중률',pct(st.getApply(u))],['회피율',pct(st.getEvade(u))],['치명타 확률',pct(st.getCri(u))]]);
         html += '<h3>보유 스킬</h3>' + (u.skills || []).map((sk,i) => `<button class="inspect-skill" data-inspect-skill="${i}">${esc(C.skillName(sk.key))} <span class="note">레벨 ${sk.level || 1}${sk.cooldownLeft ? ' · 대기 ' + sk.cooldownLeft + '턴' : ''}</span></button>`).join('');
         const buffs = u.buffs || [];
-        html += '<h3>현재 효과</h3>' + (buffs.length ? '<ul>' + buffs.map(b => `<li>${esc(C.buffName(b.key))}${b.left > 0 ? ' · 남은 ' + b.left + '턴' : ''}</li>`).join('') + '</ul>' : '<div class="note">적용 중인 효과가 없습니다.</div>');
+        html += '<h3>현재 효과</h3>' + (buffs.length ? '<ul>' + buffs.map(b => `<li>${esc(C.buffName(b.key))}${b.leftSec !== undefined ? ' · 남은 ' + Math.max(0, b.leftSec).toFixed(1) + '초' : b.left > 0 ? ' · 남은 ' + b.left + '턴' : ''}</li>`).join('') + '</ul>' : '<div class="note">적용 중인 효과가 없습니다.</div>');
       }
       const body = el.closest('.win-body'), scroll = body ? body.scrollTop : 0;
       el.innerHTML = html;

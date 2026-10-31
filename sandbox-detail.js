@@ -100,6 +100,7 @@
   }
   function buffTime(bf) {
     const row = bf.row || L.T('Table_BuffEffect', bf.key) || {};
+    if (bf.leftSec !== undefined) return `${Math.max(0, bf.leftSec).toFixed(1)}초 남음`; // 실험 '버프 지속 시간화'
     if (num(row, 'BuffEffectEraseType') === 1) return fmt(loc('1174', '{0}횟수 남음'), bf.left);
     return num(row, 'BuffEffectLeftCount' + (bf.sortIndex || 1)) === 0 ? loc('421', '영구') : fmt(loc('674', '{0}라운드 남음'), bf.left);
   }
