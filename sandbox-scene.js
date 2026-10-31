@@ -340,6 +340,8 @@
       const k = (UNIT_H * p.f) / 110; // 칸 안 사람형 110px → 화면 유닛 높이
       drawn = SDL.drawTo(ctx, u, p.x, p.y, k, dead && an.name !== 'die' ? 0.35 : 1);
       if (drawn) u._infoPt = SDL.nodePoint(u, 'buffIcon', p.x, p.y, k); // UICreatureInfo 기준점(_buffIcon 특수 위치)
+      // 큰 몬스터(빅 칙 등)는 리그의 기준점이 몸 가운데라 체력 바가 앞뒤 줄과 겹친다. 그림 꼭대기에서 일정 거리(보통 전투원과 같은 높이)보다 아래면 그만큼 올린다 (V1.35)
+      if (u._infoPt && SDL.topY) { const top = SDL.topY(u, p.y, k); if (top != null) u._infoPt.y = Math.min(u._infoPt.y, top + 0.52 * UNIT_H * p.f); }
     }
     if (!drawn) { // 리그 없음: 실루엣 + 이름표
       const im = faceImg(u);
@@ -808,6 +810,18 @@
     }
   }
   // 유닛 정보 (UICreatureInfo): 발밑 체력 막대(LineView), 선택 시 상태 창(SelectState) + 예상 명중률(SelectTarget)
+  // 체력 바 바로 위 AP 게이지(V1.35): 아군·적 공통, 턴 순서 바와 같은 값(경주 연출 중에는 연출 값). 100이 되면 행동
+  function drawApGauge(ctx, u, selected, ox, oy, sc) {
+    if (!C.optOn('hud', 'apGauge')) return;
+    const dx = selected && C.isMob(u) ? 8 : 0; // ShowSelectCreatureInfo: 몬스터는 SelectView x = 8
+    const r = selected ? [21.3 + dx, 21.5, 164.3 + dx, 27.5] : [23.3, 18.6, 108.3, 23.6]; // 체력 바(SliderLineHpBgSp / SliderSelectHpBgSp) 바로 위
+    const x = W / 2 + ox + r[0] * sc, y = H / 2 - oy - r[3] * sc, w = (r[2] - r[0]) * sc, h = (r[3] - r[1]) * sc;
+    const ap = Math.max(0, Math.min(1, shownAp(u, performance.now()) / 100));
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
+    ctx.fillStyle = ap >= 1 ? '#ffd166' : '#5ec8f0'; ctx.fillRect(x, y, w * ap, h);
+    ctx.restore();
+  }
   function drawCreatureInfo(ctx, u, m, pv, selected) {
     const lay = UI.layout('cinfo'); if (!lay.length) return;
     const bx = unitBox(u), p = bx.p;
@@ -835,6 +849,7 @@
     const count = groups ? groups.length : list.length, over = count > 7;
     ov['Wrapper/BuffOverSp'] = { active: over }; ov['BuffOverSp/BuffOverLb'] = { text: over ? String(count - 7) : '' };
     UI.draw(ctx, lay, { W, H, ox, oy, scale: sc, ov });
+    drawApGauge(ctx, u, selected, ox, oy, sc);
     const tbl = selected ? [15.9, -19.1] : [7.9, -6], ER = C.E.BUFFEFFECT_ERASE_TYPE, pad = 1.25, size = 35, pitch = size + pad * 2;
     const at = (col, row) => ({ x: W / 2 + ox + (tbl[0] + pad + size / 2 + col * pitch) * sc, y: H / 2 - oy - (tbl[1] - pad - size / 2 - row * pitch) * sc });
     // 초 단위 버프(실험 '버프 지속 시간화')는 남은 3초부터 깜빡인다

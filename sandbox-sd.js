@@ -99,7 +99,7 @@
         c.root.scale.set(it.flip ? -k : k, k, 1);
         const mid = (t.box.min.x + t.box.max.x) / 2 * k;
         c.root.position.set(cx - (it.flip ? -mid : mid), by - t.box.min.y * k, 0);
-        it.holder._sdPose = { k, mid, flip: !!it.flip, minY: t.box.min.y };
+        it.holder._sdPose = { k, mid, flip: !!it.flip, minY: t.box.min.y, maxY: t.box.max.y };
         if (!c.root.parent) this.scene.add(c.root);
         c.root.visible = true;
         used.add(c); slots.push({ c, col, row });
@@ -182,6 +182,8 @@
       const p = c.posU(ix[name]), s = ps.flip ? -1 : 1;
       return { x: cx + k * s * (ps.k * p[0] - ps.mid), y: footY + k * ps.k * (ps.minY - p[1]) };
     },
+    // 이번 프레임 그림 꼭대기의 화면 y (큰 몬스터의 정보 표시를 올리는 데 씀). 리그가 없으면 null
+    topY(holder, footY, k) { const ps = holder._sdPose; if (!ps || !holder._sd || ps.maxY === undefined) return null; return footY + k * ps.k * (ps.minY - ps.maxY); },
     release(holder) { if (holder && holder._sd) { this.scene && this.scene.remove(holder._sd.root); holder._sd.dispose && holder._sd.dispose(); holder._sd = null; holder._sdSlot = null; } },
   };
   window.SDL = SDL;
