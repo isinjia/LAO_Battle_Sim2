@@ -696,7 +696,9 @@
     const winnerUnit = wk && byKey.has(wk) ? byKey.get(wk).u : null;
     // 스킬별 재출발 위치 미리보기: 차례가 시작되면 1번 스킬이 자동으로 눌리므로 그때부터 보인다. 스킬 버튼을 누르면 그 스킬 기준으로 바뀐다.
     // 이동 후 행동이면 이미 쓴 이동 AP 20을 포함해 계산한다 (2026-10-31)
-    if (C.sysOn('skillReturnPreview') && (C.sysOn('skillApReturn') || C.sysOn('moveApCost')) && manual && manual.mode === 'skill' && manual.skill && winnerUnit === manual.unit) {
+    // 라운드 시작 대기·경주 연출이 끝나 실제로 그 전투원의 차례가 된 뒤에만 보인다(연출 중·대기 중에는 미리 보이지 않음)
+    const turnArrived = !ph || ph.name === 'done';
+    if (C.sysOn('skillReturnPreview') && (C.sysOn('skillApReturn') || C.sysOn('moveApCost')) && manual && manual.mode === 'skill' && manual.skill && winnerUnit === manual.unit && turnArrived) {
       const cost = num(manual.skill.levelTable, 'NeedActionPoint');
       const spent = (manual.unit.flags && manual.unit.flags.apCost) || 0;
       const percent = Math.max(0, Math.min(100, 100 - spent - cost * 10));

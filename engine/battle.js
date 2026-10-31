@@ -40,10 +40,13 @@
     if (LOSim.buffs && LOSim.buffs.has) return LOSim.buffs.has(u, t) || null;
     return null;
   };
+  // B.turnSpeedMul: 실험 시스템 'AP 회복 속도 2배'가 정하는 배율(기본 1). 모든 전투원과 예약 공격의 행동력 회복 속도에 곱한다 (2026-10-31)
+  B.turnSpeedMul = B.turnSpeedMul || 1;
   const turnSpeed = (u) => {
-    if (LOSim.stats && LOSim.stats.getTurnSpeed) return +LOSim.stats.getTurnSpeed(u) || 0;
+    const mul = B.turnSpeedMul > 0 ? B.turnSpeedMul : 1;
+    if (LOSim.stats && LOSim.stats.getTurnSpeed) return (+LOSim.stats.getTurnSpeed(u) || 0) * mul;
     const a = u.attr && u.attr[E.VALUE_TYPE.ABS];
-    return (a && a[E.ACTOR_ATTR_TYPE.TURNSPEED]) || 0;
+    return ((a && a[E.ACTOR_ATTR_TYPE.TURNSPEED]) || 0) * mul;
   };
   const recalc = (b, u) => { if (LOSim.stats && LOSim.stats.recalc) LOSim.stats.recalc(u, b); };
   const fire = (b, trig, ctx) => { if (LOSim.buffs && LOSim.buffs.trigger) LOSim.buffs.trigger(b, trig, ctx || {}); };

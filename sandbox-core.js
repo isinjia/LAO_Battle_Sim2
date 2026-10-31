@@ -42,6 +42,8 @@
       desc: '스킬 소모 행동력에 따른 재출발(또는 이동 시 AP 20 소모 후 행동) 실험을 함께 켜면, 그 전투원의 차례가 시작될 때부터(1번 스킬이 자동으로 눌린 상태) 고른 스킬 사용 후 돌아갈 위치를 턴바의 하늘색 점선과 백분율로 표시합니다. 다른 스킬 버튼을 누르면 그 스킬 기준으로 바뀝니다. 이동 후 행동이면 이미 쓴 이동 AP 20을 포함합니다. 스킬에 지정된 소모량 기준이며 별도 행동력 효과는 포함하지 않습니다.' },
     { id: 'slotCooldown', name: '스킬 쿨타임 적용', test: true, on: false,
       desc: '켜면 아군과 적의 1번 스킬은 재사용 대기 없이 사용하고, 2번 스킬은 지정된 재사용 대기를 적용합니다. 끄면 두 스킬 모두 기존 설정을 따릅니다.' },
+    { id: 'apSpeed2x', name: 'AP 회복 속도 2배', test: true, on: true,
+      desc: '켜면 아군·적 모든 전투원과 예약(지연) 공격의 행동력 회복 속도를 2배로 계산합니다. 전투원끼리의 상대 순서는 그대로이고, 라운드마다 행동력이 차는 시간이 절반이 되어 턴 순서 바의 경주 연출이 짧아지며 행동력을 정해진 양만큼 더하거나 빼는 효과(행동력 증감)는 상대적으로 절반의 영향만 줍니다. 2026-10-31 전투 피드백. 전투 중에 바꾸면 다음 라운드 계산부터 적용되고, 이미 걸어 둔 예약 공격의 회복 속도는 바뀌지 않습니다.' },
     { id: 'noCooldown', name: '스킬 쿨타임 삭제', test: true, on: true,
       desc: '켜면 아군과 적의 모든 스킬에 재사용 대기를 적용하지 않습니다(테이블의 재사용 대기 값은 무시). 2026-10-31 전투 피드백 1번. 끄면 아래 "스킬 쿨타임 적용" 설정을 따릅니다.' },
     { id: 'moveApCost', name: '이동 시 AP 20 소모 후 행동', test: true, on: true,
@@ -149,6 +151,7 @@
     const b = L.battle.create({ stageKey: null, mode: 'stage', squad: squadSpecs(), seed, logEnabled: true, customWaves: [enemyWave()], options: { maxActions: +setup.maxActions || 2000 } });
     b.rng = makeRng(seed);
     b.hooks = { beforeAction, skillApReturn: () => sysOn('skillApReturn'), cooldownTurns, actAfterMove: () => sysOn('actAfterMove'), moveApCost: () => sysOn('moveApCost'), waitHeal: () => sysOn('waitHeal') };
+    L.battle.turnSpeedMul = sysOn('apSpeed2x') ? 2 : 1;
     S.battle = b; S.lastLog = 0; S.forcePause = true; S.log = []; S.result = null;
     if (b.result === 'error') { logLine('issue', '<b>전투를 시작하지 못했습니다. 배치를 확인하고 다시 시작해 주세요.</b>'); emit('battle'); return false; }
     logLine('stage', `<b>전투 시작</b><div class="why">아군: ${esc(squadSpecs().map((s) => `${pcName(s.key)} 레벨 ${s.level}`).join(', '))}\n적: ${esc(enemyWave().map((m) => `${mobName(m.key)} 레벨 ${m.level}`).join(', '))}\n시험 시스템: ${SYSTEMS.filter((s) => s.on && !s.builtin).map((s) => s.name + (s.opts || []).filter((o) => o.on).map((o) => `(${o.name})`).join('')).join(', ') || '없음'}</div>`);
@@ -649,6 +652,7 @@
   }
   function onSystemsChanged(id) {
     saveSystems();
+    if (L.battle) L.battle.turnSpeedMul = sysOn('apSpeed2x') ? 2 : 1;
     if (S.battle) {
       if (id === 'slotCooldown' && sysOn(id)) for (const u of S.battle.allUnits) for (const sk of u.skills || []) if (slotOf(sk) === 1) { sk.cooldownLeft = 0; sk._cdSkip = false; }
       if (id === 'noCooldown' && sysOn(id)) for (const u of S.battle.allUnits) for (const sk of u.skills || []) { sk.cooldownLeft = 0; sk._cdSkip = false; }
