@@ -159,6 +159,7 @@
       realTimeBuffs: () => (sysOn('realTimeBuffs') ? REAL_TIME_BUFFS : null) };
     L.battle.turnSpeedMul = sysOn('apSpeed2x') ? 2 : 1;
     S.battle = b; S.lastLog = 0; S.forcePause = true; S.log = []; S.result = null;
+    S.history = []; S.rewindLeft = REWIND_MAX; // 턴 되돌리기 기록(V1.34)
     if (b.result === 'error') { logLine('issue', '<b>전투를 시작하지 못했습니다. 배치를 확인하고 다시 시작해 주세요.</b>'); emit('battle'); return false; }
     logLine('stage', `<b>전투 시작</b><div class="why">아군: ${esc(squadSpecs().map((s) => `${pcName(s.key)} 레벨 ${s.level}`).join(', '))}\n적: ${esc(enemyWave().map((m) => `${mobName(m.key)} 레벨 ${m.level}`).join(', '))}\n시험 시스템: ${SYSTEMS.filter((s) => s.on && !s.builtin).map((s) => s.name + (s.opts || []).filter((o) => o.on).map((o) => `(${o.name})`).join('')).join(', ') || '없음'}</div>`);
     emit('battle');
@@ -170,6 +171,7 @@
     stopPlay();
     if (S.battle && window.SDL) for (const u of S.battle.allUnits || []) SDL.release(u);
     S.battle = null; S.pending = null; S.pendingSel = null; S.manual = null; S.preview = null; S.lastPreview = null; S.intents = new Map(); S.anims = new Map(); S.lastAction = null; S.result = null; S.apAnim = null;
+    S.history = []; S.rewindLeft = REWIND_MAX;
     if (!silent) { S.log = []; logLine('stage', '초기화했습니다. 전투 시작을 누르세요.'); }
     emit('battle');
   }
@@ -219,6 +221,7 @@
     const u = rec.unit; if (!u) return;
     S.pendingSel = upcomingSel(u);
     if (sysOn('manual') && isPC(u)) {
+      if (!rec.rewound) recordTurn(u); // 되돌아갈 수 있는 지점: 아군 차례가 시작되는 순간(V1.34)
       S.manual = { unit: u, skill: null, sel: null, mode: null, cands: null, hover: null, needPlay: false };
       S.preview = null;
       emit('input', rec);
@@ -457,6 +460,46 @@
     b.rng.state = sn.rng; b.s = sn.s; if (sn.extraQueue) b.s.extraQueue = sn.extraQueue;
     b.actualKey = sn.actualKey; b.result = sn.result; b.resultReason = sn.resultReason; b.totalTurnCount = sn.totalTurnCount; b.selfTurnCounts = sn.selfTurnCounts; b.totalActions = sn.totalActions; b.apTime = sn.apTime;
   }
+  // ---------------------------------------------------------------- 턴 되돌리기 (V1.34)
+  // 아군 차례가 시작될 때마다 전투 상태를 통째로 기록해 두고, 배속 왼쪽 버튼의 팝업에서 고른 차례로 돌아간다.
+  // 기록 수는 제한이 없지만 한 전투에서 되돌리기는 최대 3회. 돌아간 뒤 그 차례 이후의 기록은 지운다.
+  const REWIND_MAX = 3;
+  S.history = []; S.rewindLeft = REWIND_MAX;
+  function cloneSnapshot(sn) { // snapshot() 결과는 restore() 가 객체를 그대로 끼워 넣으므로, 같은 기록으로 두 번 돌아갈 수 있게 복사본을 만든다
+    const cloneAttr = (a) => a.map((r) => r.slice());
+    return Object.assign({}, sn, {
+      units: sn.units.map((r) => Object.assign({}, r, { attr: cloneAttr(r.attr), base: r.base ? cloneAttr(r.base) : null, buffs: r.buffs.map((x) => ({ obj: x.obj, data: Object.assign({}, x.data) })),
+        flags: Object.assign({}, r.flags), stats: Object.assign({}, r.stats, { skillUse: Object.assign({}, r.stats.skillUse) }), skills: r.skills.map((x) => Object.assign({}, x)), rl: r.rl.slice() })),
+      unitsArr: sn.unitsArr.slice(), allArr: sn.allArr.slice(), reserve: sn.reserve.map((x) => ({ obj: x.obj, data: Object.assign({}, x.data) })),
+      s: Object.assign({}, sn.s), extraQueue: sn.extraQueue ? sn.extraQueue.slice() : null, selfTurnCounts: new Map(sn.selfTurnCounts) });
+  }
+  function recordTurn(u) {
+    const b = S.battle; if (!b) return;
+    const sn = snapshot(b);
+    sn.extra = { round: b.round, waveIndex: b.waveIndex, clock: b.clock || 0, actionCount: b.actionCount, totalRounds: b.totalRounds, clearWave: b.clearWave };
+    S.history.push({ no: S.history.length + 1, round: b.round, unit: u, name: unitName(u), sn, logLen: S.log.length, intents: new Map(S.intents) });
+    emit('history');
+  }
+  function rewindTo(index) {
+    const b = S.battle, h = S.history[index]; if (!b || !h) return false;
+    if (S.rewindLeft <= 0) { emit('status', `되돌리기는 한 전투에 ${REWIND_MAX}회까지입니다.`); return false; }
+    stopPlay();
+    restore(b, cloneSnapshot(h.sn));
+    Object.assign(b, h.sn.extra);
+    S.history.length = index + 1; S.rewindLeft--;
+    if (S.log.length > h.logLen) S.log.splice(0, S.log.length - h.logLen); // 기록 창도 그 시점으로(최신이 앞)
+    S.lastLog = b.log.length;
+    S.pendingSel = null; S.manual = null; S.preview = null; S.lastPreview = null; S.anims = new Map(); S.lastAction = null; S.result = null; S.apAnim = null; S.forcePause = false;
+    for (const u of b.allUnits) if (u.hp > 0) { u._deathVisualAt = null; u._deathVisualDone = false; }
+    S.intents = new Map(h.intents); for (const u of b.units) if (u.lockedIntent === undefined) u.lockedIntent = null;
+    const rec = { type: 'input', round: b.round, wave: b.waveIndex + 1, turn: b.s.confirmed, actor: { aid: h.unit.aid }, unit: h.unit, rewound: true };
+    logLine('sys', `<b>턴 되돌리기</b> ${h.no}번째 차례(라운드 ${h.round}, ${esc(h.name)})로 돌아갔습니다. 남은 횟수 ${S.rewindLeft}회`);
+    onInput(rec);
+    refreshIntents();
+    emit('rewind'); emit('battle');
+    return true;
+  }
+
   // 시험 실행: 명중 강제·치명 고정으로 엔진 실행 함수를 돌린 뒤 되돌린다
   function trial(a, skill, sel, crit) {
     const b = S.battle, ST = L.stats, sn = snapshot(b), origRecalc = ST.recalc;
@@ -714,7 +757,7 @@
     toggleSystem(id, on) { SYS[id].on = on; onSystemsChanged(id); }, toggleOpt(id, oid, on) { SYS[id].opts.find((x) => x.id === oid).on = on; onSystemsChanged(id); },
     get PCS() { return PCS; }, get PCMAP() { return PCMAP; }, get MOBS() { return MOBS; }, get MOBMAP() { return MOBMAP; }, get ICONS() { return ICONS; }, get SPRITES() { return SPRITES; },
     setup, S, on, emit, load, get inspected() { return inspected; }, inspect, saveSetup, defaultSetup, newAllySpec, squadSpecs, enemyWave,
-    startBattle, resetBattle, stepOnce, startPlay, stopPlay, go,
+    startBattle, resetBattle, stepOnce, startPlay, stopPlay, go, rewindTo, REWIND_MAX,
     manualChooseSkill, manualChooseMove, manualChooseWait, manualPick, manualCancelTarget, manualHover, manualClickUnit, manualClickCell, manualExecute, manualCandidates, playConfirmed, setAuto, isAuto: () => !sysOn('manual'),
     estimate, estimateSel, computeIntent, intentMarkers, describeSel, describeAction, effectsOf,
     pcName, mobName, unitName, skillName, buffName, slotOf, cooldownTurns, activeSkills, alive, isPC, isMob, speedOf, hasB, byAid, skillIcon, tbarIcon, timeScale, verifySame, logLine,

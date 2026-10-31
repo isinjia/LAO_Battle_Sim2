@@ -125,6 +125,12 @@
   function onClickInner(h) {
     if (window.DETAIL && DETAIL.unit) { DETAIL.click(h); return; } // 상세 정보창이 떠 있으면 그 창만 누를 수 있다
     const S = C.S, m = S.manual;
+    if (SCENE.rewindOpen) { // 턴 되돌리기 팝업이 떠 있으면 그 팝업만 누를 수 있다
+      if (h && h.kind === 'rewindPick') { SCENE.rewindOpen = false; C.rewindTo(h.data); }
+      else if (!h || h.kind !== 'rewindPanel') SCENE.rewindOpen = false;
+      return;
+    }
+    if (h && h.kind === 'rewind') { if (S.battle && !S.battle.result && S.history && S.history.length && S.rewindLeft > 0) SCENE.rewindOpen = true; else if (S.rewindLeft <= 0) SCENE.setStatus(`되돌리기는 한 전투에 ${C.REWIND_MAX}회까지입니다.`); return; }
     if (h && h.kind === 'unit') C.inspect({ kind: 'unit', unit: h.data });
     if (h && h.kind === 'skill' && h.data) C.inspect({ kind: 'skill', skill: h.data, unit: m ? m.unit : (S.pending && S.pending.unit) || (S.lastAction && S.lastAction.actor) });
     if (!h) { if (m && m.sel && m.mode !== 'wait') C.manualCancelTarget(); return; } // 빈 곳 탭: 대상 선택 취소(ConfirmCancel)
@@ -148,6 +154,7 @@
   // 피해 숫자는 동작 중간(hitDelay)에 뜨고, 그때까지 체력 막대는 이전 값을 유지한다(인게임 타이밍)
   SCENE.hp = new Map(); SCENE.hpHold = new Map();
   SCENE.actionArrows = [];
+  C.on('rewind', () => { SCENE.hp = new Map(); SCENE.hpHold = new Map(); SCENE.actionArrows = []; SCENE.pops = []; SCENE.track = { pos: new Map(), enter: new Map(), winner: null, ruid: 0 }; SCENE.rewindOpen = false; });
   C.on('action', (info) => {
     addActionArrows(info);
     const at = performance.now() + (info.hitDelay || 0) * 1000;
@@ -281,6 +288,7 @@
     drawPops(ctx, now);
     drawHud(ctx, now, m, pv, markers);
     drawTopInfo(ctx);
+    drawRewindPopup(ctx);
     if (S.result) drawResult(ctx, S.result);
     drawPressRing(ctx, now);
     if (window.DETAIL && DETAIL.unit) { SCENE.hits = []; DETAIL.draw(ctx, W, H, hit); } // 길게 누르기 상세 정보창(맨 위, 뒤는 누를 수 없음)
@@ -360,8 +368,13 @@
       icons.forEach((bf, i) => { const ic = (C.ICONS.buff[bf.key] || [])[0]; const im = ic ? sprite(ic) : null; if (im) ctx.drawImage(im, x + i * 22 * p.f, y - 26 * p.f, 20 * p.f, 20 * p.f); });
     }
     // 후보·선택 표시 (UI_Battle_main_Field_cursor_r / selectIcon)
-    const isCand = !dead && m && !m.sel && m.mode === 'skill' && m.cands && m.cands.kind === 'unit' && m.cands.units.includes(u);
-    const isSel = !dead && m && m.sel && m.sel.targetAid === u.aid;
+    // 칸 대상 스킬(그리폰 화염 폭격 등)도 단일 대상처럼: 후보 칸에 선 전투원에게 후보 표식, 고른 칸의 범위에 드는 전투원(미리보기 결과, 없으면 그 칸의 전투원)에게 대상 표식 (V1.34)
+    const cellSide = (side) => (u.team === 1) === (side === 1);
+    const cellCand = m && !m.sel && m.mode === 'skill' && m.cands && m.cands.kind === 'cell' && m.cands.fixed === null && cellSide(m.cands.side) && m.cands.cells.includes(u.gridPos);
+    const cellSel = m && m.sel && !m.sel.targetAid && m.sel.targetGridPos !== 255 && m.sel.skillKey !== C.MOVE && m.cands && m.cands.kind === 'cell' && cellSide(m.cands.side)
+      && (pv && C.sysOn('preview') ? pv.targets.some((t) => t.unit === u && (t.dmgN !== undefined || t.ally)) : u.gridPos === m.sel.targetGridPos);
+    const isCand = !dead && ((m && !m.sel && m.mode === 'skill' && m.cands && m.cands.kind === 'unit' && m.cands.units.includes(u)) || cellCand);
+    const isSel = !dead && ((m && m.sel && m.sel.targetAid === u.aid) || cellSel);
     // UI_Cha_select_icon_Enemy 프리팹: 회전하지 않는 역삼각형(조각 3개 + 외곽선) + 가운데 TARGET 글자 + 아래 커서(0.5초 위아래 왕복).
     //  나타날 때 TweenScale 0 → 1 (0.5초). 화면 좌표는 아래가 양수이므로 원본의 세로 위치와 회전 부호를 뒤집는다.
     if (isCand || isSel) {
@@ -444,7 +457,8 @@
       const friendly = tt === TT.SELF || tt === TT.OUR || tt === TT.OUR_GRID || tt === 8;
       const ring = mk.isMove || mk.isWait ? '#5ec8f0' : friendly ? '#8ce62e' : '#ff5a4a';
       const bx = unitBox(mk.enemy), f = bx.p.f;
-      const d = 50 * f, cx = bx.x + bx.w + d / 2 - 10 * f, cy = bx.y + bx.h * 0.22; // 머리 옆 높이: 뒷줄 전투원의 체력 바와 겹치지 않게 위쪽에
+      // 슬롯(칸) 기준 위치: 칸의 왼쪽, 발 높이보다 조금 위. 몬스터 크기와 무관하고 뒷줄 전투원의 체력 바(발 아래)와 겹치지 않는다 (V1.34)
+      const d = 50 * f, cx = bx.p.x - 88 * f, cy = bx.p.y - 48 * f;
       drawIcon(cx, cy, d, mk, ring);
       if (mk.target && mk.target.hp > 0 && mk.target !== mk.enemy) {
         const tb = unitBox(mk.target);
@@ -482,6 +496,41 @@
     text(ctx, '배속', bx + 16, by + bh / 2, { size: 20, color: '#dfe7f0' });
     text(ctx, SPEED_LABEL[spd], bx + bw - 16, by + bh / 2, { size: 30, align: 'right', color: spd === 1 ? '#fff' : '#ffd166' });
     hit(bx, by, bw, bh, 'speed', null);
+  }
+  // 턴 되돌리기 버튼(V1.34): 배속 버튼 왼쪽. 누르면 돌아갈 아군 차례를 고르는 팝업. 한 전투에 최대 3회
+  function drawRewindButton(ctx) {
+    const S = C.S; if (!S.battle) return;
+    const left = S.rewindLeft == null ? C.REWIND_MAX : S.rewindLeft, n = (S.history || []).length;
+    const usable = !S.battle.result && left > 0 && n > 0;
+    const bw = 230, bh = 64, bx = W / 2 + 843 - 12 - bw, by = H / 2 - 432;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = usable ? '#7ddcff' : 'rgba(223,231,240,.4)'; ctx.lineWidth = 2; ctx.strokeRect(bx + 1, by + 1, bw - 2, bh - 2);
+    ctx.restore();
+    text(ctx, '턴 되돌리기', bx + 16, by + bh / 2, { size: 20, color: usable ? '#dfe7f0' : 'rgba(223,231,240,.5)' });
+    text(ctx, `${left}/${C.REWIND_MAX}`, bx + bw - 16, by + bh / 2, { size: 26, align: 'right', color: usable ? '#7ddcff' : 'rgba(223,231,240,.5)' });
+    hit(bx, by, bw, bh, 'rewind', null);
+  }
+  function drawRewindPopup(ctx) {
+    const S = C.S; if (!SCENE.rewindOpen || !S.battle) return;
+    const hist = (S.history || []).slice(-12).reverse(); // 최근 12개, 최신이 위
+    const rowH = 56, pw = 620, ph = 120 + rowH * Math.max(1, hist.length);
+    const px = W / 2 - pw / 2, py = H / 2 - ph / 2;
+    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, H); ctx.restore(); // 뒤를 어둡게
+    hit(0, 0, W, H, 'rewindClose', null, 'default');
+    ctx.save(); ctx.fillStyle = 'rgba(14,22,34,.96)'; ctx.beginPath(); ctx.roundRect(px, py, pw, ph, 10); ctx.fill(); ctx.strokeStyle = '#7ddcff'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+    hit(px, py, pw, ph, 'rewindPanel', null, 'default');
+    text(ctx, '돌아갈 차례 고르기', px + 24, py + 34, { size: 26, color: '#7ddcff' });
+    text(ctx, `남은 횟수 ${S.rewindLeft}/${C.REWIND_MAX} · 고른 차례가 시작되는 순간으로 돌아가고 그 뒤 기록은 지워집니다`, px + 24, py + 70, { size: 17, color: '#aab8c8' });
+    hist.forEach((h, i) => {
+      const y = py + 96 + i * rowH, idx = S.history.indexOf(h), cur = idx === S.history.length - 1 && S.manual && S.manual.unit === h.unit;
+      ctx.save(); ctx.fillStyle = cur ? 'rgba(125,220,255,.10)' : 'rgba(255,255,255,.06)'; ctx.beginPath(); ctx.roundRect(px + 20, y, pw - 40, rowH - 8, 6); ctx.fill(); ctx.restore();
+      const im = faceImg(h.unit); if (im) circleClip(ctx, im, px + 48, y + (rowH - 8) / 2, 40);
+      text(ctx, `${h.no}번째 차례 · 라운드 ${h.round} · ${h.name}`, px + 80, y + (rowH - 8) / 2, { size: 21, color: '#fff' });
+      text(ctx, cur ? '지금 차례' : '여기로', px + pw - 36, y + (rowH - 8) / 2, { size: 19, align: 'right', color: cur ? '#aab8c8' : '#7ddcff' });
+      hit(px + 20, y, pw - 40, rowH - 8, 'rewindPick', idx);
+    });
+    text(ctx, '닫기: 바깥을 누르세요', px + pw - 24, py + ph - 20, { size: 16, align: 'right', color: '#aab8c8' });
   }
   function cycleSpeed() {
     const order = [1, 2, 3, 4]; const cur = order.includes(+C.setup.speed) ? +C.setup.speed : 1;
@@ -597,6 +646,7 @@
     } else ov['Panel_StageBattle/UI_ATK_Confirm'] = { active: false };
     UI.draw(ctx, lay, { W, H, ox: 0, oy: 0, scale: 1, ov, hit: hitFromUi });
     drawSpeedButton(ctx);
+    drawRewindButton(ctx);
     drawSkillPanel(ctx, now, m, who);
     drawTrack(ctx, now, markers);
     // 수동 대상 선택 중 미리보기 창 (SkillPreview: 승인 버튼 옆)
