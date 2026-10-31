@@ -274,8 +274,8 @@
     // 유닛(먼 줄부터)
     const units = b.units.filter((u) => !(u.removed && !C.isPC(u))).sort((x, y) => Math.floor(x.gridPos / 3) - Math.floor(y.gridPos / 3) || x.gridPos - y.gridPos);
     for (const u of units) drawUnit(ctx, u, now, m, pv, markers);
+    drawPredictMarkers(ctx, markers); // 체력 바·이름표보다 아래 층에 그려 가리지 않게 한다 (V1.33)
     for (const u of units) drawUnitHud(ctx, u, m, pv, markers);
-    drawPredictMarkers(ctx, markers);
     for (const u of units) drawTurnIndicator(ctx, u);
     drawActionArrows(ctx, now);
     drawPops(ctx, now);
@@ -444,12 +444,12 @@
       const friendly = tt === TT.SELF || tt === TT.OUR || tt === TT.OUR_GRID || tt === 8;
       const ring = mk.isMove || mk.isWait ? '#5ec8f0' : friendly ? '#8ce62e' : '#ff5a4a';
       const bx = unitBox(mk.enemy), f = bx.p.f;
-      const d = 54 * f, cx = bx.x + bx.w + d / 2 - 4 * f, cy = bx.y + bx.h * 0.3;
+      const d = 50 * f, cx = bx.x + bx.w + d / 2 - 10 * f, cy = bx.y + bx.h * 0.22; // 머리 옆 높이: 뒷줄 전투원의 체력 바와 겹치지 않게 위쪽에
       drawIcon(cx, cy, d, mk, ring);
       if (mk.target && mk.target.hp > 0 && mk.target !== mk.enemy) {
         const tb = unitBox(mk.target);
         const key = mk.target.aid; const n = stack.get(key) || 0; stack.set(key, n + 1);
-        const td = 40 * tb.p.f, tx = tb.p.x - 30 * tb.p.f + n * (td + 6), ty = Math.max(200, tb.y - 30 * tb.p.f);
+        const td = 34 * tb.p.f, tx = tb.p.x - 24 * tb.p.f + n * (td + 4), ty = Math.max(200, tb.y - 22 * tb.p.f);
         drawIcon(tx, ty, td, mk, ring);
       } else if (mk.targetGridPos !== 255 && !mk.target) {
         const c = cellPos(1, mk.targetGridPos);
