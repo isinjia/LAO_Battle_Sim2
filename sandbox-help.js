@@ -172,8 +172,11 @@
   document.addEventListener('keydown', (ev) => { if (ev.key === 'F1') { ev.preventDefault(); HELP.open(HELP.current || 'start'); } });
 
   // ---------------------------------------------------------------- 버전과 패치노트
-  HELP.VERSION = 'V1.29';
+  HELP.VERSION = 'V1.30';
   HELP.NOTES = [
+    { version: 'V1.30', date: '2026-10-31', items: [
+      '전투 화면 오른쪽 위(기록 버튼 아래)에 배속 버튼 추가: 누를 때마다 x1 → x2 → x5 → MAX(연출 없음). 설정 패널의 연출 속도와 같은 값이며 다음 전투에도 유지',
+    ] },
     { version: 'V1.29', date: '2026-10-31', items: [
       '칸을 고르는 스킬(그리폰 화염 폭격 등)의 승인 버튼이 시전자 위에 뜨던 문제 수정: 고른 칸 위에 표시',
     ] },

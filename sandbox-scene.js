@@ -136,6 +136,7 @@
       case 'play': C.playConfirmed(); break;
       case 'restart': C.startBattle(); break;
       case 'auto': C.setAuto(!C.isAuto()); break;
+      case 'speed': cycleSpeed(); break;
       case 'unit': if (m) { if (!C.manualClickUnit(h.data) && m.sel && m.mode !== 'wait') C.manualCancelTarget(); } break;
       case 'cell': if (m) C.manualClickCell(h.data.team, h.data.pos); break;
       case 'log': if (window.WM) WM.show('log'); break;
@@ -456,6 +457,25 @@
   //  칸은 UI_BattleCreatureScroll/ScrollView(화면 왼쪽 아래 고정) 기준이고, ScrollView 패널의 잘림 영역(중심 -555,155 크기 1150x310) 밖은 그리지 않는다.
   const AP_TRACK = { LEFT_X: -920, RIGHT_X: -15, ALLY_Y: 150, ENEMY_Y: 50, FIRST_Y: 100, SLOT: 102, WINNER_GAP: 14, SCALE: 0.65, WINNER_SCALE: 0.85, WAVE_ENTRY: 0.7, WAVE_INTERVAL: 0.1, CLIP: [-555, 155, 1150, 310] };
   function hitFromUi(o, rect, kind) { hit(rect.x, rect.y, rect.w, rect.h, kind.kind || kind, kind.data); }
+  // 배속 버튼(2026-10-31): 오른쪽 위, 원작의 쓰지 않는 화면 버튼(btnScreen) 자리. 누를 때마다 x1 → x2 → x5 → MAX. 설정 패널의 연출 속도와 같은 값
+  const SPEED_LABEL = { 1: 'x1', 2: 'x2', 3: 'x5', 4: 'MAX' };
+  function drawSpeedButton(ctx) {
+    const spd = SPEED_LABEL[+C.setup.speed] ? +C.setup.speed : 1;
+    const bx = W / 2 + 843, by = H / 2 - 432, bw = 175, bh = 64;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = spd === 1 ? 'rgba(223,231,240,.7)' : '#ffd166'; ctx.lineWidth = 2; ctx.strokeRect(bx + 1, by + 1, bw - 2, bh - 2);
+    ctx.restore();
+    text(ctx, '배속', bx + 16, by + bh / 2, { size: 20, color: '#dfe7f0' });
+    text(ctx, SPEED_LABEL[spd], bx + bw - 16, by + bh / 2, { size: 30, align: 'right', color: spd === 1 ? '#fff' : '#ffd166' });
+    hit(bx, by, bw, bh, 'speed', null);
+  }
+  function cycleSpeed() {
+    const order = [1, 2, 3, 4]; const cur = order.includes(+C.setup.speed) ? +C.setup.speed : 1;
+    C.setup.speed = order[(order.indexOf(cur) + 1) % order.length]; C.saveSetup();
+    const sel = document.getElementById('speed'); if (sel) sel.value = String(C.setup.speed); // 설정 패널의 연출 속도 선택과 맞춤
+    SCENE.setStatus('연출 속도 ' + SPEED_LABEL[C.setup.speed] + (C.setup.speed === 4 ? ' (연출 없음)' : ''));
+  }
   // 오른쪽 아래 스킬 패널 — 라이브 전투 화면(2400x1200 캡처)에서 잰 배치를 설계 좌표(1080 기준)로 환산해 화면 오른쪽 아래에 붙인다.
   //  패널 바탕(사다리꼴) → 헤더 띠("스킬명 : …", 속성 아이콘) → 오른쪽 버프 띠 → "AP n" → 버튼 4개(원형 아이콘 + AP 배지 + 3x3 범위 격자)
   const SKP = { pitch: 122.4, grid0: -513, circleDx: -18, circleY: -166, circleR: 41, ringR: 36, iconD: 70, boxW: 76, boxBottom: -14, badgeY: -113, badgeW: 68, badgeH: 25, cell: 18, cellPitch: 21.6, gridTopY: -83 };
@@ -563,6 +583,7 @@
       ov['UI_ATK_Confirm/Confirm_btn_Eye guidance'] = { active: true, alpha: 0.6 + 0.3 * Math.sin(now / 250) };
     } else ov['Panel_StageBattle/UI_ATK_Confirm'] = { active: false };
     UI.draw(ctx, lay, { W, H, ox: 0, oy: 0, scale: 1, ov, hit: hitFromUi });
+    drawSpeedButton(ctx);
     drawSkillPanel(ctx, now, m, who);
     drawTrack(ctx, now, markers);
     // 수동 대상 선택 중 미리보기 창 (SkillPreview: 승인 버튼 옆)
