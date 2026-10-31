@@ -426,22 +426,35 @@
       }
     }
   }
+  // 적 행동 예측 표식(V1.32): 몬스터 옆에 다음 행동의 스킬 아이콘을 둥글게 표시한다(붉은 테 = 공격, 푸른 테 = 이동·대기, 녹색 테 = 자기편 대상).
+  // 대상이 정해진 행동이면 그 대상 머리 위에 같은 아이콘을 작게 겹쳐 보여 누가 맞을지 알린다. 글자 표식("예상 ○○ → 스킬")은 없앴다.
   function drawPredictMarkers(ctx, markers) {
     const stack = new Map();
-    for (const mk of markers) {
-      let follow, textS;
-      const sname = mk.skill ? C.skillName(mk.skill.key) : mk.isMove ? '이동' : '대기';
-      if (mk.target && mk.target.hp > 0) { follow = unitBox(mk.target); textS = ['예상', mk.enemy.name, '→', sname]; }
-      else if (mk.targetGridPos !== 255) { const c = cellPos(1, mk.targetGridPos); follow = { x: c.x - 40, y: c.y - 120, w: 80, h: 120 }; textS = ['예상', mk.enemy.name, '→', sname]; }
-      else { follow = unitBox(mk.enemy); textS = ['예상', mk.isWait ? '대기' : mk.isMove ? '이동' : sname]; }
-      const key = follow.x + ',' + follow.y; const n = stack.get(key) || 0; stack.set(key, n + 1);
-      const cx = follow.x + follow.w / 2, cy = Math.max(200 + 34 * n, follow.y - 22 - 34 * n); // 턴 순서 바(위 180px) 아래로
-      ctx.save(); ctx.font = '700 19px "Noto Sans KR", sans-serif';
-      const parts = textS.map((s, i) => ({ s, w: ctx.measureText(s).width, color: i === 0 ? '#ffd86e' : s === '→' ? '#ff8a80' : '#fff' }));
-      const tw = parts.reduce((a, p) => a + p.w, 0) + (parts.length - 1) * 14; const w = Math.max(120, tw + 20), h = 30;
-      ctx.fillStyle = mk.isMove || mk.isWait ? 'rgba(20,51,102,.85)' : 'rgba(115,13,13,.85)'; ctx.beginPath(); ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 4); ctx.fill();
-      let x = cx - tw / 2; for (const p of parts) { text(ctx, p.s, x, cy, { size: 19, color: p.color }); x += p.w + 14; }
+    const drawIcon = (cx, cy, d, mk, ring) => {
+      const im = skillImg(mk.icon);
+      ctx.save();
+      ctx.beginPath(); ctx.arc(cx, cy, d / 2 + 3, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fill();
+      if (im) circleClip(ctx, im, cx, cy, d); else { ctx.beginPath(); ctx.arc(cx, cy, d / 2, 0, Math.PI * 2); ctx.fillStyle = '#333'; ctx.fill(); }
+      ctx.beginPath(); ctx.arc(cx, cy, d / 2 + 1.5, 0, Math.PI * 2); ctx.strokeStyle = ring; ctx.lineWidth = 3; ctx.stroke();
       ctx.restore();
+    };
+    for (const mk of markers) {
+      if (mk.enemy.hp <= 0) continue;
+      const tt = mk.skill ? num(mk.skill.table, 'TargetType') : -1;
+      const friendly = tt === TT.SELF || tt === TT.OUR || tt === TT.OUR_GRID || tt === 8;
+      const ring = mk.isMove || mk.isWait ? '#5ec8f0' : friendly ? '#8ce62e' : '#ff5a4a';
+      const bx = unitBox(mk.enemy), f = bx.p.f;
+      const d = 54 * f, cx = bx.x + bx.w + d / 2 - 4 * f, cy = bx.y + bx.h * 0.3;
+      drawIcon(cx, cy, d, mk, ring);
+      if (mk.target && mk.target.hp > 0 && mk.target !== mk.enemy) {
+        const tb = unitBox(mk.target);
+        const key = mk.target.aid; const n = stack.get(key) || 0; stack.set(key, n + 1);
+        const td = 40 * tb.p.f, tx = tb.p.x - 30 * tb.p.f + n * (td + 6), ty = Math.max(200, tb.y - 30 * tb.p.f);
+        drawIcon(tx, ty, td, mk, ring);
+      } else if (mk.targetGridPos !== 255 && !mk.target) {
+        const c = cellPos(1, mk.targetGridPos);
+        drawIcon(c.x, c.y - 40 * c.f, 40 * c.f, mk, ring);
+      }
     }
   }
   function drawPops(ctx, now) {
