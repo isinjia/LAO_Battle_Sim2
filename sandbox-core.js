@@ -59,7 +59,8 @@
       desc: '라켓몬스터 방식으로 원작 SD 리그를 재생합니다(바이오로이드 206종·철충 23종). 리그가 없는 유닛은 이름표로 표시됩니다.',
       opts: [{ id: 'flipAlly', name: '아군 좌우 반전', on: false }, { id: 'flipEnemy', name: '적 좌우 반전', on: false }] }, // 기본: 아군은 오른쪽(적 쪽)을 본다
     { id: 'hud', name: '유닛 정보 표시', on: true, builtin: true, desc: '유닛 발밑에 체력 막대와 이름·레벨을, 턴 순서 바에 행동력 게이지를 표시합니다(원작 UICreatureInfo / UIBattleCreature 구성).',
-      opts: [{ id: 'names', name: '이름·레벨 표시', on: true }, { id: 'apBars', name: '턴 순서 바에 행동력 게이지', on: true }] },
+      opts: [{ id: 'names', name: '이름·레벨 표시', on: true }, { id: 'apBars', name: '턴 순서 바에 행동력 게이지', on: true },
+        { id: 'lineup', name: '턴 순서 바 줄 세우기(원작 방식)', on: false }] }, // 끄면 경주가 끝나도 행동력 비례 위치에 그대로 둔다(2026-10-31)
   ];
   const SYS = Object.fromEntries(SYSTEMS.map((s) => [s.id, s]));
   const sysOn = (id) => !!(SYS[id] && SYS[id].on);

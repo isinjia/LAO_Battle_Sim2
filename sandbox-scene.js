@@ -600,8 +600,19 @@
     const byKey = new Map(items.map((it) => [it.key, it]));
     const ranked = (wk) => items.filter((it) => it.key !== wk).sort((p, q) => (q.cur - p.cur) || (p.u.aid - q.u.aid)); // TurnValue 내림차순, Aid 보조
     // coArrangeApTrackSlots 1단계: 1등 칸을 비워 둔 채 우승자부터 자기 진영 칸에 줄 세움. 2단계: 우승자는 공통 1등 칸, 나머지는 한 칸 앞으로
-    const lineupLayout = (wk) => { const w = byKey.get(wk), line = w ? [w].concat(ranked(wk)) : ranked(wk); const out = new Map(); line.forEach((it, i) => out.set(it.key, slotPos(it, i))); return out; };
-    const finalLayout = (wk) => { const out = new Map(); ranked(wk).forEach((it, i) => out.set(it.key, slotPos(it, i))); if (byKey.has(wk)) out.set(wk, Object.assign({}, firstPos)); return out; };
+    // 줄 세우기를 끄면(기본) 경주가 끝나도 각 칸을 행동력 비례 위치에 두고 우승자만 공통 1등 칸으로 올린다. 재출발 위치(예: 60)가 그대로 보인다 (2026-10-31)
+    const useLineup = C.optOn('hud', 'lineup');
+    const lineupLayout = (wk) => {
+      const out = new Map();
+      if (!useLineup) { for (const it of items) out.set(it.key, apPos(it, it.cur)); return out; }
+      const w = byKey.get(wk), line = w ? [w].concat(ranked(wk)) : ranked(wk); line.forEach((it, i) => out.set(it.key, slotPos(it, i))); return out;
+    };
+    const finalLayout = (wk) => {
+      const out = new Map();
+      if (!useLineup) for (const it of items) out.set(it.key, apPos(it, it.cur));
+      else ranked(wk).forEach((it, i) => out.set(it.key, slotPos(it, i)));
+      if (byKey.has(wk)) out.set(wk, Object.assign({}, firstPos)); return out;
+    };
 
     // 우승자(이번 행동권 주인): 행동 직전 멈춤(pending) 중이면 그 유닛. 멈춤이 없는 라운드는 지금 행동 중인 유닛
     const pend = S.pending, pt = pend && pend.turn;
