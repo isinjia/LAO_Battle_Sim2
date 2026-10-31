@@ -64,10 +64,14 @@
 
   // ------------------------------------------------------------------ AP helpers (Creature.cs renewal)
   // shared with buffs.js: STAGE_AP_VALUE/SHIFT write unit.turnPos and, while unit.flags.apTracking, unit.flags.apCarry
-  function beginActionPointCycle(u) { if (u.flags.apTracking) return; u.flags.apTracking = true; u.flags.apCarry = 0; u.flags.apReturnBase = 0; }
-  function cancelActionPointCycle(u) { u.flags.apTracking = false; u.flags.apCarry = 0; u.flags.apReturnBase = 0; u.flags.waitApExhausted = false; }
+  // apCost: 이번 턴의 자기 행동(이동·스킬)이 소모한 AP 합(실험 시스템 '이동 시 AP 20 소모 후 행동'). apReturnBase = 100 - apCost.
+  function beginActionPointCycle(u) { if (u.flags.apTracking) return; u.flags.apTracking = true; u.flags.apCarry = 0; u.flags.apReturnBase = 0; u.flags.apCost = 0; }
+  function cancelActionPointCycle(u) { u.flags.apTracking = false; u.flags.apCarry = 0; u.flags.apReturnBase = 0; u.flags.apCost = 0; u.flags.waitApExhausted = false; }
+  const moveApCostOn = (b) => !!(b && b.hooks && b.hooks.moveApCost && b.hooks.moveApCost());
+  const actAfterMoveOn = (b) => !!(b && b.hooks && ((b.hooks.actAfterMove && b.hooks.actAfterMove()) || moveApCostOn(b)));
+  function addApCost(u, cost) { u.flags.apCost = Math.min(ACTIVE_ROUND(), (u.flags.apCost || 0) + cost); u.flags.apReturnBase = Math.max(0, ACTIVE_ROUND() - u.flags.apCost); }
   function resetActionPoint(u, b) {
-    const experiment = b && b.hooks && b.hooks.skillApReturn && b.hooks.skillApReturn();
+    const experiment = (b && b.hooks && b.hooks.skillApReturn && b.hooks.skillApReturn()) || moveApCostOn(b);
     const base = experiment ? (u.flags.apReturnBase || 0) : 0;
     u.turnPos = u.flags.apTracking && !u.flags.waitApExhausted ? f32(Math.min(ACTIVE_ROUND(), Math.max(0, base + (u.flags.apCarry || 0)))) : 0;
     cancelActionPointCycle(u);
@@ -535,7 +539,7 @@
     let actionTurn = null;
     if (s.moveFollowup) {
       const next = s.moveFollowup;
-      if (!alive(next.creature) || !(b.hooks && b.hooks.actAfterMove && b.hooks.actAfterMove())) s.moveFollowup = null;
+      if (!alive(next.creature) || !actAfterMoveOn(b)) s.moveFollowup = null;
       else {
         if (!next.prepared) {
           next.prepared = true;
@@ -622,14 +626,21 @@
         rec.waitHeal = healed;
         rec.waitHealRate = rate;
       }
-      if (rec.kind === 'move' && !actionTurn.isReserve && !actionTurn.isDouble && !actionTurn.isMoveFollowup && b.hooks && b.hooks.actAfterMove && b.hooks.actAfterMove()) {
+      if (rec.kind === 'move' && !actionTurn.isReserve && !actionTurn.isDouble && !actionTurn.isMoveFollowup && actAfterMoveOn(b)) {
         s.moveFollowup = Object.assign({}, actionTurn, { isMoveFollowup: true, prepared: false });
       }
-      // 스킬 소모 행동력을 100점 기준 트랙 단위로 환산해 턴 종료 후 출발점을 정한다.
-      if (!actionTurn.isReserve && !actionTurn.isDouble && rec.kind === 'skill') {
-        const used = LOSim.ai.skillByKey(a, rec.skill);
-        const cost = used ? LOSim.num(used.levelTable, 'NeedActionPoint') : 10;
-        a.flags.apReturnBase = Math.max(0, Math.min(ACTIVE_ROUND(), ACTIVE_ROUND() - cost * 10));
+      // 자기 행동이 소모한 AP를 100점 기준 트랙 단위로 누적해 턴 종료 후 출발점을 정한다.
+      // 스킬: 소모 행동력×10. 이동: 20('이동 시 AP 20 소모 후 행동'이 켜진 경우). 대기: 전부 소모.
+      if (!actionTurn.isReserve && !actionTurn.isDouble) {
+        if (rec.kind === 'skill') {
+          const used = LOSim.ai.skillByKey(a, rec.skill);
+          const cost = used ? LOSim.num(used.levelTable, 'NeedActionPoint') : 10;
+          addApCost(a, cost > 0 ? cost * 10 : ACTIVE_ROUND());
+        } else if (rec.kind === 'move' && moveApCostOn(b)) {
+          addApCost(a, 20);
+        } else if (rec.kind === 'wait') {
+          addApCost(a, ACTIVE_ROUND());
+        }
       }
       return rec;
     }

@@ -509,8 +509,10 @@
       // AP 배지 / Move / Wait
       const bcx = gx + 16, bcy = B + SKP.badgeY;
       roundPath(ctx, bcx - SKP.badgeW / 2, bcy - SKP.badgeH / 2, SKP.badgeW, SKP.badgeH, 12); ctx.fillStyle = 'rgba(14,15,19,0.95)'; ctx.fill(); ctx.strokeStyle = 'rgba(200,170,90,0.9)'; ctx.lineWidth = 1.5; ctx.stroke();
-      if (kind === 'skill' && C.sysOn('skillApReturn')) { const ap = sk ? num(sk.levelTable, 'NeedActionPoint') : 0; const w1 = text(ctx, 'AP', bcx - 24, bcy + 1, { size: 19, color: '#5ec8f0', outline: false }); text(ctx, `-${ap}`, bcx - 24 + w1 + 4, bcy + 1, { size: 23, color: '#fff', outline: false }); }
+      const apBadge = C.sysOn('skillApReturn') || C.sysOn('moveApCost');
+      if (kind === 'skill' && apBadge) { const ap = sk ? num(sk.levelTable, 'NeedActionPoint') : 0; const w1 = text(ctx, 'AP', bcx - 24, bcy + 1, { size: 19, color: '#5ec8f0', outline: false }); text(ctx, `-${ap}`, bcx - 24 + w1 + 4, bcy + 1, { size: 23, color: '#fff', outline: false }); }
       else if (kind === 'skill') text(ctx, `Skill${k + 1}`, bcx, bcy + 1, { size: 21, align: 'center', color: '#fff', outline: false });
+      else if (kind === 'move' && C.sysOn('moveApCost')) { const w1 = text(ctx, 'AP', bcx - 24, bcy + 1, { size: 19, color: '#5ec8f0', outline: false }); text(ctx, '-2', bcx - 24 + w1 + 4, bcy + 1, { size: 23, color: '#fff', outline: false }); } // 이동 AP 20 = 소모 행동력 2
       else text(ctx, kind === 'move' ? 'Move' : 'Wait', bcx, bcy + 1, { size: 23, align: 'center', color: '#fff', outline: false });
       // 3x3 범위 격자
       let on = [];
@@ -681,9 +683,10 @@
     ctx.restore();
     const manual = S.manual;
     const winnerUnit = wk && byKey.has(wk) ? byKey.get(wk).u : null;
-    if (C.sysOn('skillReturnPreview') && C.sysOn('skillApReturn') && manual && manual.mode === 'skill' && manual.skill && winnerUnit === manual.unit) {
+    if (C.sysOn('skillReturnPreview') && (C.sysOn('skillApReturn') || C.sysOn('moveApCost')) && manual && manual.mode === 'skill' && manual.skill && winnerUnit === manual.unit) {
       const cost = num(manual.skill.levelTable, 'NeedActionPoint');
-      const percent = Math.max(0, Math.min(100, 100 - cost * 10));
+      const spent = (manual.unit.flags && manual.unit.flags.apCost) || 0; // 이동 후 행동이면 이미 쓴 이동 AP 20을 포함
+      const percent = Math.max(0, Math.min(100, 100 - spent - cost * 10));
       const returnX = apX(percent);
       const ally = C.isPC(manual.unit) || manual.unit.team === 1;
       const cx = W / 2 + ax + returnX + (fr[0] + fr[2]) / 2 * AP_TRACK.SCALE;

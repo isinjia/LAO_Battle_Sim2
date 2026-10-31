@@ -42,6 +42,10 @@
       desc: '스킬 소모 행동력에 따른 재출발 실험을 함께 켜면, 선택한 스킬 사용 후 돌아갈 위치를 턴바의 하늘색 점선과 백분율로 표시합니다. 스킬에 지정된 소모량 기준이며 별도 행동력 효과는 포함하지 않습니다.' },
     { id: 'slotCooldown', name: '스킬 쿨타임 적용', test: true, on: false,
       desc: '켜면 아군과 적의 1번 스킬은 재사용 대기 없이 사용하고, 2번 스킬은 지정된 재사용 대기를 적용합니다. 끄면 두 스킬 모두 기존 설정을 따릅니다.' },
+    { id: 'noCooldown', name: '스킬 쿨타임 삭제', test: true, on: true,
+      desc: '켜면 아군과 적의 모든 스킬에 재사용 대기를 적용하지 않습니다(테이블의 재사용 대기 값은 무시). 2026-10-31 전투 피드백 1번. 끄면 아래 "스킬 쿨타임 적용" 설정을 따릅니다.' },
+    { id: 'moveApCost', name: '이동 시 AP 20 소모 후 행동', test: true, on: true,
+      desc: '켜면 이동은 AP 20을 소모하고 턴을 끝내지 않습니다. 같은 전투원이 이어서 스킬 또는 대기를 한 번 더 고르며, 한 턴에 이동은 한 번만 가능합니다. 턴이 끝나면 100에서 20과 스킬 소모 행동력×10을 뺀 값에서 다시 출발하고(음수는 0), 이동 후 대기는 AP를 전부 소모합니다. 2026-10-31 전투 피드백 2·3번. 아군과 적에게 모두 적용되며, 스킬 소모량 차감은 "스킬 소모 행동력에 따른 재출발"과 같은 규칙입니다.' },
     { id: 'actAfterMove', name: '이동 후 행동 가능', test: true, on: false,
       desc: '켜면 이동 후 턴을 끝내지 않고 같은 전투원이 스킬 또는 대기를 한 번 더 선택합니다. 한 턴에 이동은 한 번만 가능하며 아군과 적 모두 적용됩니다. 끄면 이동 즉시 턴을 종료합니다.' },
     { id: 'waitHeal', name: '대기 시 회복', test: true, on: false,
@@ -90,7 +94,7 @@
   const skillName = (key) => { const t = key && L.T('Table_Skill', key); return t ? L.name(t.SkillName, key) : key || ''; };
   const buffName = (key) => { const t = key && L.T('Table_BuffEffect', key); return t ? L.name(t.Name, '효과') : '효과'; };
   const slotOf = (s) => (s.slot !== undefined && s.slot !== null ? s.slot : num(s.table, 'SkillSlotType'));
-  const cooldownTurns = (s) => sysOn('slotCooldown') && slotOf(s) === 1 ? 0 : Math.max(0, num(s.levelTable, 'CooldownTurn'));
+  const cooldownTurns = (s) => sysOn('noCooldown') ? 0 : sysOn('slotCooldown') && slotOf(s) === 1 ? 0 : Math.max(0, num(s.levelTable, 'CooldownTurn'));
   const activeSkills = (u) => (u.skills || []).filter((s) => slotOf(s) === 1 || slotOf(s) === 2).sort((a, b) => slotOf(a) - slotOf(b));
   const alive = (u) => u && u.hp > 0 && !u.removed;
   const isPC = (u) => u.type === 'CHARACTER';
@@ -143,7 +147,7 @@
     const seed = +setup.seed || 1;
     const b = L.battle.create({ stageKey: null, mode: 'stage', squad: squadSpecs(), seed, logEnabled: true, customWaves: [enemyWave()], options: { maxActions: +setup.maxActions || 2000 } });
     b.rng = makeRng(seed);
-    b.hooks = { beforeAction, skillApReturn: () => sysOn('skillApReturn'), cooldownTurns, actAfterMove: () => sysOn('actAfterMove'), waitHeal: () => sysOn('waitHeal') };
+    b.hooks = { beforeAction, skillApReturn: () => sysOn('skillApReturn'), cooldownTurns, actAfterMove: () => sysOn('actAfterMove'), moveApCost: () => sysOn('moveApCost'), waitHeal: () => sysOn('waitHeal') };
     S.battle = b; S.lastLog = 0; S.forcePause = true; S.log = []; S.result = null;
     if (b.result === 'error') { logLine('issue', '<b>전투를 시작하지 못했습니다. 배치를 확인하고 다시 시작해 주세요.</b>'); emit('battle'); return false; }
     logLine('stage', `<b>전투 시작</b><div class="why">아군: ${esc(squadSpecs().map((s) => `${pcName(s.key)} 레벨 ${s.level}`).join(', '))}\n적: ${esc(enemyWave().map((m) => `${mobName(m.key)} 레벨 ${m.level}`).join(', '))}\n시험 시스템: ${SYSTEMS.filter((s) => s.on && !s.builtin).map((s) => s.name + (s.opts || []).filter((o) => o.on).map((o) => `(${o.name})`).join('')).join(', ') || '없음'}</div>`);
@@ -646,6 +650,7 @@
     saveSystems();
     if (S.battle) {
       if (id === 'slotCooldown' && sysOn(id)) for (const u of S.battle.allUnits) for (const sk of u.skills || []) if (slotOf(sk) === 1) { sk.cooldownLeft = 0; sk._cdSkip = false; }
+      if (id === 'noCooldown' && sysOn(id)) for (const u of S.battle.allUnits) for (const sk of u.skills || []) { sk.cooldownLeft = 0; sk._cdSkip = false; }
       refreshIntents();
       if (S.pending) {
         const u = S.pending.unit; S.pendingSel = upcomingSel(u); const sel = S.pendingSel;
