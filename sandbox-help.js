@@ -172,8 +172,11 @@
   document.addEventListener('keydown', (ev) => { if (ev.key === 'F1') { ev.preventDefault(); HELP.open(HELP.current || 'start'); } });
 
   // ---------------------------------------------------------------- 버전과 패치노트
-  HELP.VERSION = 'V1.19';
+  HELP.VERSION = 'V1.20';
   HELP.NOTES = [
+    { version: 'V1.20', date: '2026-10-31', items: [
+      '배포 저장소를 LAO_Battle_Sim2 로 옮김(코드 변경 없음)',
+    ] },
     { version: 'V1.19', date: '2026-10-27', items: [
       '전투원 목록을 초기 전투원 5명(P/A-00 그리폰, 에이미 레이저, 마이티 R, 콘스탄챠 S2, 다프네)으로 되돌림. 나머지 전투원은 아직 구현·검증 전이라 편성 목록과 배포판에서 제외',
       'SD 리그 자료도 5명 것만 저장소·배포판에 포함(sd/charmap.js 와 sd/chars/index.js 가 기준, tools/collect_assets.py 는 이 목록만 모음)',
