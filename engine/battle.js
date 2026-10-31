@@ -70,7 +70,7 @@
   // apCost: 이번 턴의 자기 행동(이동·스킬)이 소모한 AP 합(실험 시스템 '이동 시 AP 20 소모 후 행동'). apReturnBase = 100 - apCost.
   function beginActionPointCycle(u) { if (u.flags.apTracking) return; u.flags.apTracking = true; u.flags.apCarry = 0; u.flags.apReturnBase = 0; u.flags.apCost = 0; }
   function cancelActionPointCycle(u) { u.flags.apTracking = false; u.flags.apCarry = 0; u.flags.apReturnBase = 0; u.flags.apCost = 0; u.flags.waitApExhausted = false; }
-  const WAIT_AP_COST = 50; // 대기 소모 AP(트랙 단위). 소모 행동력 5. '대기 시 회복'이 켜져 있으면 그쪽 규칙(전부 소모)이 우선
+  const WAIT_AP_COST = 50; // 대기 소모 AP(트랙 단위). 소모 AP 5. '대기 시 회복'이 켜져 있어도 같다(V1.31: 전부 소모 규칙 제거)
   B.WAIT_AP_COST = WAIT_AP_COST;
   const moveApCostOn = (b) => !!(b && b.hooks && b.hooks.moveApCost && b.hooks.moveApCost());
   const actAfterMoveOn = (b) => !!(b && b.hooks && ((b.hooks.actAfterMove && b.hooks.actAfterMove()) || moveApCostOn(b)));
@@ -635,8 +635,7 @@
         const rates = [0.2, 0.15, 0.1, 0.05, 0.025, 0.0125, 0.01];
         const rate = count < rates.length ? rates[count] : 0.01 * Math.pow(0.5, count - 6);
         const healed = Math.max(0, Math.min(Math.trunc(a.maxHp * rate), a.maxHp - a.hp));
-        a.flags.waitHealCount = count + 1;
-        a.flags.waitApExhausted = true;
+        a.flags.waitHealCount = count + 1; // AP는 아래 공통 규칙(대기 소모 50)대로 처리한다 (2026-10-31, V1.31)
         a.hp += healed; a.stats.healDone += healed;
         if (healed > 0) log(b, 'heal', { src: uref(a), dst: uref(a), amount: healed, hp: a.hp });
         rec.waitHeal = healed;
@@ -646,7 +645,7 @@
         s.moveFollowup = Object.assign({}, actionTurn, { isMoveFollowup: true, prepared: false });
       }
       // 자기 행동이 소모한 AP를 100점 기준 트랙 단위로 누적해 턴 종료 후 출발점을 정한다.
-      // 스킬: 소모 행동력×10. 이동: 20('이동 시 AP 20 소모 후 행동'이 켜진 경우). 대기: 전부 소모.
+      // 스킬: 소모 AP×10. 이동: 20('이동 시 AP 20 소모 후 행동'이 켜진 경우). 대기: 50 고정.
       if (!actionTurn.isReserve && !actionTurn.isDouble) {
         if (rec.kind === 'skill') {
           const used = LOSim.ai.skillByKey(a, rec.skill);

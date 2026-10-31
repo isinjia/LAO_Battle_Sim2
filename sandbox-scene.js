@@ -727,7 +727,7 @@
     let previewCost = null; // 트랙 단위 소모량
     if (manual && manual.mode === 'skill' && manual.skill) previewCost = num(manual.skill.levelTable, 'NeedActionPoint') * 10;
     else if (manual && manual.mode === 'move' && C.sysOn('moveApCost')) previewCost = 20;
-    else if (manual && manual.mode === 'wait') previewCost = C.sysOn('waitHeal') ? 100 : (L.battle.WAIT_AP_COST || 50);
+    else if (manual && manual.mode === 'wait') previewCost = L.battle.WAIT_AP_COST || 50; // '대기 시 회복'이 켜져 있어도 대기는 소모 5 고정 (V1.31)
     if (C.sysOn('skillReturnPreview') && (C.sysOn('skillApReturn') || C.sysOn('moveApCost')) && manual && previewCost !== null && winnerUnit === manual.unit && turnArrived) {
       const spent = (manual.unit.flags && manual.unit.flags.apCost) || 0;
       const percent = Math.max(0, Math.min(100, 100 - spent - previewCost));
